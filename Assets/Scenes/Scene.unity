@@ -169,7 +169,12 @@ MonoBehaviour:
   mapWidth: 513
   mapHeight: 513
   noiseScale: 27.6
-  autoUpdate: 0
+  octaves: 4
+  persistance: 0.27
+  lacunarity: 5.05
+  seed: 10
+  offset: {x: 4.79, y: 2.94}
+  autoUpdate: 1
 --- !u!4 &1008436975
 Transform:
   m_ObjectHideFlags: 0
