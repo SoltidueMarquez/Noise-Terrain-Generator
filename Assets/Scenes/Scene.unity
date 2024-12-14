@@ -166,15 +166,41 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 916b4f4143ed7456294aa19afa97bde8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mapWidth: 513
-  mapHeight: 513
-  noiseScale: 27.6
-  octaves: 4
-  persistance: 0.27
-  lacunarity: 5.05
-  seed: 10
-  offset: {x: 4.79, y: 2.94}
+  drawMode: 1
+  mapWidth: 100
+  mapHeight: 100
+  noiseScale: 25
+  octaves: 5
+  persistance: 0.5
+  lacunarity: 2
+  seed: 7
+  offset: {x: 0, y: 0}
   autoUpdate: 1
+  regions:
+  - name: Water Deep
+    height: 0.3
+    colour: {r: 0.20784314, g: 0.3882353, b: 0.7764706, a: 0}
+  - name: Water Shallow
+    height: 0.4
+    colour: {r: 0.33456028, g: 0.50619113, b: 0.85660374, a: 0}
+  - name: Sand
+    height: 0.45
+    colour: {r: 0.7846277, g: 0.79622644, b: 0.5333215, a: 0}
+  - name: Grass
+    height: 0.55
+    colour: {r: 0.34901962, g: 0.5921569, b: 0.10980392, a: 0}
+  - name: Forest
+    height: 0.6
+    colour: {r: 0.16586713, g: 0.4566037, b: 0, a: 0}
+  - name: Rock
+    height: 0.7
+    colour: {r: 0.35686275, g: 0.27058825, b: 0.24313726, a: 0}
+  - name: Rock2
+    height: 0.9
+    colour: {r: 0.29411766, g: 0.23529412, b: 0.21176471, a: 0}
+  - name: Snow
+    height: 1
+    colour: {r: 1, g: 1, b: 1, a: 0}
 --- !u!4 &1008436975
 Transform:
   m_ObjectHideFlags: 0
@@ -268,7 +294,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 513, y: 1, z: 513}
+  m_LocalScale: {x: 100, y: 1, z: 100}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
