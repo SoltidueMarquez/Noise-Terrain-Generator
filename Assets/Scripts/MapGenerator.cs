@@ -2,7 +2,7 @@
 using UnityEngine;
 
 [Serializable]
-public enum DrawMode {NoiseMap, ColourMap};
+public enum DrawMode {NoiseMap, ColourMap, Mesh};
 public class MapGenerator : MonoBehaviour {
 	[Tooltip("绘制模式")] public DrawMode drawMode;
 	
@@ -40,10 +40,17 @@ public class MapGenerator : MonoBehaviour {
 
 		//可视化展示
 		MapDisplay display = FindObjectOfType<MapDisplay> ();
-		if (drawMode == DrawMode.NoiseMap) {
-			display.DrawTexture (TextureGenerator.TextureFromHeightMap(noiseMap));
-		} else if (drawMode == DrawMode.ColourMap) {
-			display.DrawTexture (TextureGenerator.TextureFromColourMap(colourMap, mapWidth, mapHeight));
+		switch (drawMode)
+		{
+			case DrawMode.NoiseMap:
+				display.DrawTexture (TextureGenerator.TextureFromHeightMap(noiseMap));
+				break;
+			case DrawMode.ColourMap:
+				display.DrawTexture (TextureGenerator.TextureFromColourMap(colourMap, mapWidth, mapHeight));
+				break;
+			case DrawMode.Mesh:
+				display.DrawMesh (MeshGenerator.GenerateTerrainMesh (noiseMap), TextureGenerator.TextureFromColourMap (colourMap, mapWidth, mapHeight));
+				break;
 		}
 	}
 

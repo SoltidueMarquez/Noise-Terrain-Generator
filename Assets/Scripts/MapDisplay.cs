@@ -1,13 +1,16 @@
 ﻿using UnityEngine;
+using System.Collections;
 
 /// <summary>
 /// 噪声地图可视化
 /// </summary>
 public class MapDisplay : MonoBehaviour {
-	public Renderer textureRender;
+	[Tooltip("纹理渲染器")] public Renderer textureRender;
+	[Tooltip("网格过滤器")] public MeshFilter meshFilter;
+	[Tooltip("网格渲染器")] public MeshRenderer meshRenderer;
 	
 	/// <summary>
-	/// //将纹理应用到纹理渲染器上(游戏未运行时编辑器状态的应用)
+	/// 将纹理应用到纹理渲染器上(游戏未运行时编辑器状态的应用)
 	/// </summary>
 	/// <param name="texture"></param>
 	public void DrawTexture(Texture2D texture) {
@@ -15,4 +18,13 @@ public class MapDisplay : MonoBehaviour {
 		textureRender.transform.localScale = new Vector3 (texture.width, 1, texture.height);
 	}
 	
+	/// <summary>
+	/// 绘制网格
+	/// </summary>
+	/// <param name="meshData"></param>
+	/// <param name="texture"></param>
+	public void DrawMesh(MeshData meshData, Texture2D texture) {
+		meshFilter.sharedMesh = meshData.CreateMesh ();
+		meshRenderer.sharedMaterial.mainTexture = texture;
+	}
 }
