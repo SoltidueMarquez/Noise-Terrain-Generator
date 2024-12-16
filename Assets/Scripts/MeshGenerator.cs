@@ -8,26 +8,31 @@ public static class MeshGenerator {
 	/// 生成地形网格数据的静态方法
 	/// </summary>
 	/// <param name="heightMap">高度图</param>
+	/// <param name="heightMultiplier">高度乘数</param>
+	/// <param name="heightCurve">不同高度收乘数影响的程度曲线</param>
+	/// <param name="levelOfDetail">LOD层数</param>
 	/// <returns></returns>
-	public static MeshData GenerateTerrainMesh(float[,] heightMap) {
+	public static MeshData GenerateTerrainMesh(float[,] heightMap, float heightMultiplier, AnimationCurve heightCurve, int levelOfDetail) {
 		int width = heightMap.GetLength (0);
 		int height = heightMap.GetLength (1);
 		float topLeftX = (width - 1) / -2f;
 		float topLeftZ = (height - 1) / 2f;
 
+		int meshSimplificationIncrement = (levelOfDetail == 0)?1:levelOfDetail * 2;//网格简化层次就是LOD系数乘以2(为0时步长为1)，作为顶点的迭代步数
+		int verticesPerLine = (width - 1) / meshSimplificationIncrement + 1;//计算每一行的顶点数
+		
 		MeshData meshData = new MeshData (width, height);//网格数据
 		int vertexIndex = 0;//顶点索引
 		
 		//遍历高度图，计算三角形
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-
-				meshData.vertices [vertexIndex] = new Vector3 (topLeftX + x, heightMap [x, y], topLeftZ - y);//传入顶点参数，做数学处理保证网格居中显示
+		for (int y = 0; y < height; y += meshSimplificationIncrement) {
+			for (int x = 0; x < width; x += meshSimplificationIncrement) {
+				meshData.vertices [vertexIndex] = new Vector3 (topLeftX + x, heightCurve.Evaluate(heightMap [x, y]) * heightMultiplier, topLeftZ - y);//传入顶点参数，做数学处理保证网格居中显示
 				meshData.uvs [vertexIndex] = new Vector2 (x / (float)width, y / (float)height);//传入uv参数
 				//为顶点设置三角形(右下，三角形*2，因此右边与底部的点不需要考虑创建三角形)
 				if (x < width - 1 && y < height - 1) {
-					meshData.AddTriangle (vertexIndex, vertexIndex + width + 1, vertexIndex + width);
-					meshData.AddTriangle (vertexIndex + width + 1, vertexIndex, vertexIndex + 1);
+					meshData.AddTriangle (vertexIndex, vertexIndex + verticesPerLine + 1, vertexIndex + verticesPerLine);
+					meshData.AddTriangle (vertexIndex + verticesPerLine + 1, vertexIndex, vertexIndex + 1);
 				}
 
 				vertexIndex++;//顶点索引后移
