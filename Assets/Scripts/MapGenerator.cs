@@ -6,7 +6,7 @@ public enum DrawMode {NoiseMap, ColourMap, Mesh};
 public class MapGenerator : MonoBehaviour {
 	[Tooltip("绘制模式")] public DrawMode drawMode;
 	
-	const int mapChunkSize = 241;
+	public const int mapChunkSize = 241;
 	[Range(0,6)] public int levelOfDetail;
 	
 	[Header("噪音设置")]
