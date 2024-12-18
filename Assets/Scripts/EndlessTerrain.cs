@@ -9,8 +9,10 @@ public class EndlessTerrain : MonoBehaviour
 {
 	[Tooltip("观察者所能看到的最远视距")] public const float maxViewDst = 450;
 	[Tooltip("观察者")] public Transform viewer;
-
+	[Tooltip("地形材质")] public Material mapMaterial;
+	
 	[Tooltip("观察者位置")] public static Vector2 viewerPosition;
+	[Tooltip("地形生成器")] static MapGenerator mapGenerator;
 	[Tooltip("地图块大小")] int chunkSize;
 	[Tooltip("可见地图块个数")] int chunksVisibleInViewDst;
 	
@@ -19,6 +21,7 @@ public class EndlessTerrain : MonoBehaviour
 	[SerializeField, Tooltip("上次更新时可见的地形块列表")] List<TerrainChunk> terrainChunksVisibleLastUpdate = new List<TerrainChunk>();
 
 	void Start() {
+		mapGenerator = FindObjectOfType<MapGenerator> ();//查找MapGenerator
 		chunkSize = MapGenerator.mapChunkSize - 1;//实际的网格大小是MapGenerator的mapChunkSize-1
 		chunksVisibleInViewDst = Mathf.RoundToInt(maxViewDst / chunkSize);//可见地图块数量等于视距能被地图块大小整除的次数
 	}
@@ -50,7 +53,7 @@ public class EndlessTerrain : MonoBehaviour
 						terrainChunksVisibleLastUpdate.Add (terrainChunkDictionary [viewedChunkCoord]);
 					}
 				} else {//不包含就实例化一个新的地形块添加进字典
-					terrainChunkDictionary.Add (viewedChunkCoord, new TerrainChunk (viewedChunkCoord, chunkSize, transform));
+					terrainChunkDictionary.Add (viewedChunkCoord, new TerrainChunk (viewedChunkCoord, chunkSize, transform, mapMaterial));
 				}
 
 			}
@@ -67,22 +70,48 @@ public class EndlessTerrain : MonoBehaviour
 		Vector2 position;
 		Bounds bounds;
 
+		MeshRenderer meshRenderer;
+		MeshFilter meshFilter;
+
 		/// <summary>
 		/// 实例化地形块
 		/// </summary>
 		/// <param name="coord">块坐标</param>
 		/// <param name="size">块大小</param>
 		/// <param name="parent">父物体</param>
-		public TerrainChunk(Vector2 coord, int size, Transform parent) {
+		/// <param name="material"></param>
+		public TerrainChunk(Vector2 coord, int size, Transform parent, Material material) {
 			position = coord * size;//位置等于块坐标乘以块大小
 			bounds = new Bounds(position,Vector2.one * size);//设置地形块边界用于距离计算
 			Vector3 positionV3 = new Vector3(position.x,0,position.y);//实例化块的位置
-
-			meshObject = GameObject.CreatePrimitive(PrimitiveType.Plane);//设置网格对象为：创建类型为平面的原始对象
+			
+			//创建地形块，添加对应组件
+			meshObject = new GameObject("Terrain Chunk");
+			meshRenderer = meshObject.AddComponent<MeshRenderer>();
+			meshFilter = meshObject.AddComponent<MeshFilter>();
+			meshRenderer.material = material;
+			
 			meshObject.transform.position = positionV3;//设置网格对象的位置
-			meshObject.transform.localScale = Vector3.one * size /10f;//设置网格对象的大小(原始平面网格默认是10倍缩放所以是除以10)
 			meshObject.transform.parent = parent;
 			SetVisible(false);
+			
+			mapGenerator.RequestMapData(OnMapDataReceived);//请求生成地图数据
+		}
+		
+		/// <summary>
+		/// 接收地图数据
+		/// </summary>
+		/// <param name="mapData"></param>
+		void OnMapDataReceived(MapData mapData) {
+			mapGenerator.RequestMeshData (mapData, OnMeshDataReceived);
+		}
+
+		/// <summary>
+		/// 接收网格数据
+		/// </summary>
+		/// <param name="meshData"></param>
+		void OnMeshDataReceived(MeshData meshData) {
+			meshFilter.mesh = meshData.CreateMesh ();//直接创建网格过滤器
 		}
 
 		/// <summary>

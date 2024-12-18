@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 [Serializable]
@@ -26,7 +28,93 @@ public class MapGenerator : MonoBehaviour {
 
 	[Tooltip("地形类型数组")] public TerrainType[] regions;
 	
-	public void GenerateMap() {
+	[Tooltip("地形地图线程信息队列")] Queue<MapThreadInfo<MapData>> mapDataThreadInfoQueue = new Queue<MapThreadInfo<MapData>>();
+	[Tooltip("地形网格线程信息队列")] Queue<MapThreadInfo<MeshData>> meshDataThreadInfoQueue = new Queue<MapThreadInfo<MeshData>>();
+
+	/// <summary>
+	/// 绘制地形方法
+	/// </summary>
+	public void DrawMapInEditor() {
+		MapData mapData = GenerateMapData ();//声明地形数据
+		MapDisplay display = FindObjectOfType<MapDisplay> ();
+		if (drawMode == DrawMode.NoiseMap) {
+			display.DrawTexture (TextureGenerator.TextureFromHeightMap (mapData.heightMap));
+		} else if (drawMode == DrawMode.ColourMap) {
+			display.DrawTexture (TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
+		} else if (drawMode == DrawMode.Mesh) {
+			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, levelOfDetail), TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
+		}
+	}
+	
+	/// <summary>
+	/// 请求地形地图数据
+	/// </summary>
+	/// <param name="callback">回调函数</param>
+	public void RequestMapData(Action<MapData> callback) {
+		ThreadStart threadStart = delegate {
+			MapDataThread (callback);
+		};
+		//创建线程启动地形数据线程委托
+		new Thread (threadStart).Start ();
+	}
+
+	/// <summary>
+	/// 地形地图数据线程
+	/// </summary>
+	/// <param name="callback">回调函数</param>
+	void MapDataThread(Action<MapData> callback) {
+		MapData mapData = GenerateMapData ();//生成地形数据
+		lock (mapDataThreadInfoQueue) {//资源锁
+			mapDataThreadInfoQueue.Enqueue (new MapThreadInfo<MapData> (callback, mapData));
+		}
+	}
+
+	/// <summary>
+	/// 请求地形网格数据
+	/// </summary>
+	/// <param name="mapData"></param>
+	/// <param name="callback"></param>
+	public void RequestMeshData(MapData mapData, Action<MeshData> callback) {
+		ThreadStart threadStart = delegate {
+			MeshDataThread (mapData, callback);
+		};
+
+		new Thread (threadStart).Start ();
+	}
+
+	/// <summary>
+	/// 地形网格数据线程
+	/// </summary>
+	/// <param name="mapData"></param>
+	/// <param name="callback"></param>
+	void MeshDataThread(MapData mapData, Action<MeshData> callback) {
+		MeshData meshData = MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, levelOfDetail);
+		lock (meshDataThreadInfoQueue) {
+			meshDataThreadInfoQueue.Enqueue (new MapThreadInfo<MeshData> (callback, meshData));
+		}
+	}
+	
+	void Update() {
+		if (mapDataThreadInfoQueue.Count > 0) {
+			for (int i = 0; i < mapDataThreadInfoQueue.Count; i++) {//遍历地图线程队列的所有元素，调用回调函数
+				MapThreadInfo<MapData> threadInfo = mapDataThreadInfoQueue.Dequeue ();
+				threadInfo.callback (threadInfo.parameter);
+			}
+		}
+
+		if (meshDataThreadInfoQueue.Count > 0) {
+			for (int i = 0; i < meshDataThreadInfoQueue.Count; i++) {
+				MapThreadInfo<MeshData> threadInfo = meshDataThreadInfoQueue.Dequeue ();
+				threadInfo.callback (threadInfo.parameter);
+			}
+		}
+	}
+	
+	/// <summary>
+	/// 生成地形数据
+	/// </summary>
+	/// <returns></returns>
+	private MapData GenerateMapData() {
 		float[,] noiseMap = Noise.GenerateNoiseMap (mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistance, lacunarity, offset);
 
 		Color[] colourMap = new Color[mapChunkSize * mapChunkSize];//声明一维颜色地图
@@ -42,20 +130,7 @@ public class MapGenerator : MonoBehaviour {
 			}
 		}
 
-		//可视化展示
-		MapDisplay display = FindObjectOfType<MapDisplay> ();
-		switch (drawMode)
-		{
-			case DrawMode.NoiseMap:
-				display.DrawTexture (TextureGenerator.TextureFromHeightMap (noiseMap));
-				break;
-			case DrawMode.ColourMap:
-				display.DrawTexture (TextureGenerator.TextureFromColourMap (colourMap, mapChunkSize, mapChunkSize));
-				break;
-			case DrawMode.Mesh:
-				display.DrawMesh (MeshGenerator.GenerateTerrainMesh (noiseMap, meshHeightMultiplier, meshHeightCurve, levelOfDetail), TextureGenerator.TextureFromColourMap (colourMap, mapChunkSize, mapChunkSize));
-				break;
-		}
+		return new MapData (noiseMap, colourMap);
 	}
 
 	//使用验证方法控制值，该方法会在脚本变量值在inspector中改变时自动调用
@@ -67,6 +142,22 @@ public class MapGenerator : MonoBehaviour {
 			octaves = 0;
 		}
 	}
+	
+	/// <summary>
+	/// 地图线程信息，设置为泛型一边同时处理地图数据与网格数据
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	struct MapThreadInfo<T> {
+		public readonly Action<T> callback;//回调
+		public readonly T parameter;//参数
+
+		public MapThreadInfo (Action<T> callback, T parameter)
+		{
+			this.callback = callback;
+			this.parameter = parameter;
+		}
+		
+	}
 }
 
 /// <summary>
@@ -77,4 +168,18 @@ public struct TerrainType {
 	[Tooltip("地形名称")] public string name;
 	[Tooltip("地形高度")] public float height;
 	[Tooltip("对应颜色")] public Color colour;
+}
+
+/// <summary>
+/// 地图数据
+/// </summary>
+public struct MapData {
+	public readonly float[,] heightMap;//高度图
+	public readonly Color[] colourMap;//颜色图
+
+	public MapData (float[,] heightMap, Color[] colourMap)
+	{
+		this.heightMap = heightMap;
+		this.colourMap = colourMap;
+	}
 }

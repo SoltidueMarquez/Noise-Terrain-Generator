@@ -387,6 +387,8 @@ GameObject:
   m_Component:
   - component: {fileID: 523196596}
   - component: {fileID: 523196597}
+  - component: {fileID: 523196598}
+  - component: {fileID: 523196599}
   m_Layer: 0
   m_Name: Generator Manager
   m_TagString: Untagged
@@ -422,6 +424,103 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   viewer: {fileID: 1881787091}
+  mapMaterial: {fileID: 2100000, guid: b0872f84cf3c7441d893168677410c73, type: 2}
+  terrainChunksVisibleLastUpdate: []
+--- !u!114 &523196598
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 523196595}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 916b4f4143ed7456294aa19afa97bde8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  drawMode: 2
+  levelOfDetail: 1
+  noiseScale: 25
+  octaves: 5
+  persistance: 0.5
+  lacunarity: 2
+  seed: 5
+  offset: {x: 0, y: 0}
+  meshHeightMultiplier: 20
+  meshHeightCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.39811113
+      value: 0.0029697092
+      inSlope: -0.10258467
+      outSlope: -0.10258467
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.18114364
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 2
+      outSlope: 2
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  autoUpdate: 1
+  regions:
+  - name: Water Deep
+    height: 0.3
+    colour: {r: 0.20784314, g: 0.3882353, b: 0.7764706, a: 0}
+  - name: Water Shallow
+    height: 0.4
+    colour: {r: 0.33456028, g: 0.50619113, b: 0.85660374, a: 0}
+  - name: Sand
+    height: 0.45
+    colour: {r: 0.7846277, g: 0.79622644, b: 0.5333215, a: 0}
+  - name: Grass
+    height: 0.55
+    colour: {r: 0.34901962, g: 0.5921569, b: 0.10980392, a: 0}
+  - name: Forest
+    height: 0.6
+    colour: {r: 0.16586713, g: 0.4566037, b: 0, a: 0}
+  - name: Rock
+    height: 0.7
+    colour: {r: 0.35686275, g: 0.27058825, b: 0.24313726, a: 0}
+  - name: Rock2
+    height: 0.9
+    colour: {r: 0.29411766, g: 0.23529412, b: 0.21176471, a: 0}
+  - name: Snow
+    height: 1
+    colour: {r: 1, g: 1, b: 1, a: 0}
+--- !u!114 &523196599
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 523196595}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4aeb0f3a8e031433495f2ddd66acbef4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  textureRender: {fileID: 0}
+  meshFilter: {fileID: 0}
+  meshRenderer: {fileID: 0}
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0

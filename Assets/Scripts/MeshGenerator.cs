@@ -12,7 +12,9 @@ public static class MeshGenerator {
 	/// <param name="heightCurve">不同高度收乘数影响的程度曲线</param>
 	/// <param name="levelOfDetail">LOD层数</param>
 	/// <returns></returns>
-	public static MeshData GenerateTerrainMesh(float[,] heightMap, float heightMultiplier, AnimationCurve heightCurve, int levelOfDetail) {
+	public static MeshData GenerateTerrainMesh(float[,] heightMap, float heightMultiplier, AnimationCurve _heightCurve, int levelOfDetail) {
+		AnimationCurve heightCurve = new AnimationCurve (_heightCurve.keys);//创建一个新的动画曲线，让线程们可以正常访问
+		
 		int width = heightMap.GetLength (0);
 		int height = heightMap.GetLength (1);
 		float topLeftX = (width - 1) / -2f;
@@ -21,13 +23,13 @@ public static class MeshGenerator {
 		int meshSimplificationIncrement = (levelOfDetail == 0)?1:levelOfDetail * 2;//网格简化层次就是LOD系数乘以2(为0时步长为1)，作为顶点的迭代步数
 		int verticesPerLine = (width - 1) / meshSimplificationIncrement + 1;//计算每一行的顶点数
 		
-		MeshData meshData = new MeshData (width, height);//网格数据
+		MeshData meshData = new MeshData (verticesPerLine, verticesPerLine);//网格数据
 		int vertexIndex = 0;//顶点索引
 		
 		//遍历高度图，计算三角形
 		for (int y = 0; y < height; y += meshSimplificationIncrement) {
 			for (int x = 0; x < width; x += meshSimplificationIncrement) {
-				meshData.vertices [vertexIndex] = new Vector3 (topLeftX + x, heightCurve.Evaluate(heightMap [x, y]) * heightMultiplier, topLeftZ - y);//传入顶点参数，做数学处理保证网格居中显示
+				meshData.vertices [vertexIndex] = new Vector3 (topLeftX + x, heightCurve.Evaluate (heightMap [x, y]) * heightMultiplier, topLeftZ - y);//传入顶点参数，做数学处理保证网格居中显示
 				meshData.uvs [vertexIndex] = new Vector2 (x / (float)width, y / (float)height);//传入uv参数
 				//为顶点设置三角形(右下，三角形*2，因此右边与底部的点不需要考虑创建三角形)
 				if (x < width - 1 && y < height - 1) {
