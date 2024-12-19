@@ -7,11 +7,18 @@ using System.Collections.Generic;
 /// </summary>
 public class EndlessTerrain : MonoBehaviour
 {
-	[Tooltip("观察者所能看到的最远视距")] public const float maxViewDst = 450;
+	const float viewerMoveThresholdForChunkUpdate = 25f;
+	const float sqrViewerMoveThresholdForChunkUpdate = viewerMoveThresholdForChunkUpdate * viewerMoveThresholdForChunkUpdate;
+
+	[Tooltip("细节层次信息")] public LODInfo[] detailLevels;
+	[Tooltip("观察者所能看到的最远视距")] public static float maxViewDst;
+	
 	[Tooltip("观察者")] public Transform viewer;
 	[Tooltip("地形材质")] public Material mapMaterial;
 	
 	[Tooltip("观察者位置")] public static Vector2 viewerPosition;
+	Vector2 viewerPositionOld;
+	
 	[Tooltip("地形生成器")] static MapGenerator mapGenerator;
 	[Tooltip("地图块大小")] int chunkSize;
 	[Tooltip("可见地图块个数")] int chunksVisibleInViewDst;
@@ -22,13 +29,22 @@ public class EndlessTerrain : MonoBehaviour
 
 	void Start() {
 		mapGenerator = FindObjectOfType<MapGenerator> ();//查找MapGenerator
+		
+		maxViewDst = detailLevels[detailLevels.Length - 1].visibleDstThreshold;
 		chunkSize = MapGenerator.mapChunkSize - 1;//实际的网格大小是MapGenerator的mapChunkSize-1
 		chunksVisibleInViewDst = Mathf.RoundToInt(maxViewDst / chunkSize);//可见地图块数量等于视距能被地图块大小整除的次数
+		
+		UpdateVisibleChunks ();
 	}
 
 	void Update() {
 		viewerPosition = new Vector2 (viewer.position.x, viewer.position.z);
-		UpdateVisibleChunks ();
+
+		//只有当观察者移动超过一个阈值距离之后才更新地块(平方计算)
+		if ((viewerPositionOld - viewerPosition).sqrMagnitude > sqrViewerMoveThresholdForChunkUpdate) {
+			viewerPositionOld = viewerPosition;
+			UpdateVisibleChunks ();
+		}
 	}
 		
 	/// <summary>
@@ -53,7 +69,7 @@ public class EndlessTerrain : MonoBehaviour
 						terrainChunksVisibleLastUpdate.Add (terrainChunkDictionary [viewedChunkCoord]);
 					}
 				} else {//不包含就实例化一个新的地形块添加进字典
-					terrainChunkDictionary.Add (viewedChunkCoord, new TerrainChunk (viewedChunkCoord, chunkSize, transform, mapMaterial));
+					terrainChunkDictionary.Add (viewedChunkCoord, new TerrainChunk (viewedChunkCoord, chunkSize, detailLevels, transform, mapMaterial));
 				}
 
 			}
@@ -67,20 +83,30 @@ public class EndlessTerrain : MonoBehaviour
 	public class TerrainChunk {
 
 		GameObject meshObject;//网格对象
-		Vector2 position;
-		Bounds bounds;
+		Vector2 position;//位置
+		Bounds bounds;//网格边界
 
-		MeshRenderer meshRenderer;
-		MeshFilter meshFilter;
+		MeshRenderer meshRenderer;//网格渲染器
+		MeshFilter meshFilter;//网格过滤器
+		
+		LODInfo[] detailLevels;//细节层次设置
+		LODMesh[] lodMeshes;//细节层次网格
+
+		MapData mapData;//地图数据
+		bool mapDataReceived;//是否收到了地图数据
+		int previousLODIndex = -1;//之前的细节层次索引值
 
 		/// <summary>
 		/// 实例化地形块
 		/// </summary>
 		/// <param name="coord">块坐标</param>
 		/// <param name="size">块大小</param>
+		/// <param name="detailLevels">细节层次信息</param>
 		/// <param name="parent">父物体</param>
 		/// <param name="material"></param>
-		public TerrainChunk(Vector2 coord, int size, Transform parent, Material material) {
+		public TerrainChunk(Vector2 coord, int size, LODInfo[] detailLevels, Transform parent, Material material) {
+			this.detailLevels = detailLevels;
+			
 			position = coord * size;//位置等于块坐标乘以块大小
 			bounds = new Bounds(position,Vector2.one * size);//设置地形块边界用于距离计算
 			Vector3 positionV3 = new Vector3(position.x,0,position.y);//实例化块的位置
@@ -95,7 +121,13 @@ public class EndlessTerrain : MonoBehaviour
 			meshObject.transform.parent = parent;
 			SetVisible(false);
 			
-			mapGenerator.RequestMapData(OnMapDataReceived);//请求生成地图数据
+			//创建细节层次网格数组
+			lodMeshes = new LODMesh[detailLevels.Length];
+			for (int i = 0; i < detailLevels.Length; i++) {//为每个细节层次都创建一个网格
+				lodMeshes[i] = new LODMesh(detailLevels[i].lod, UpdateTerrainChunk);
+			}
+
+			mapGenerator.RequestMapData(position,OnMapDataReceived);//请求生成地图数据
 		}
 		
 		/// <summary>
@@ -103,24 +135,46 @@ public class EndlessTerrain : MonoBehaviour
 		/// </summary>
 		/// <param name="mapData"></param>
 		void OnMapDataReceived(MapData mapData) {
-			mapGenerator.RequestMeshData (mapData, OnMeshDataReceived);
-		}
+			this.mapData = mapData;//设置地图数据
+			mapDataReceived = true;
 
-		/// <summary>
-		/// 接收网格数据
-		/// </summary>
-		/// <param name="meshData"></param>
-		void OnMeshDataReceived(MeshData meshData) {
-			meshFilter.mesh = meshData.CreateMesh ();//直接创建网格过滤器
+			//创建并应用纹理
+			Texture2D texture = TextureGenerator.TextureFromColourMap (mapData.colourMap, MapGenerator.mapChunkSize, MapGenerator.mapChunkSize);
+			meshRenderer.material.mainTexture = texture;
+
+			UpdateTerrainChunk ();
 		}
 
 		/// <summary>
 		/// 计算边界上最接近观察者的点到观察者的距离，更新是否可视化
 		/// </summary>
 		public void UpdateTerrainChunk() {
-			float viewerDstFromNearestEdge = Mathf.Sqrt(bounds.SqrDistance (viewerPosition));
-			bool visible = viewerDstFromNearestEdge <= maxViewDst;
-			SetVisible (visible);
+			if (mapDataReceived) {//如果收到了地图数据
+				float viewerDstFromNearestEdge = Mathf.Sqrt (bounds.SqrDistance (viewerPosition));
+				bool visible = viewerDstFromNearestEdge <= maxViewDst;
+
+				if (visible) {//如果可见，设置细节层次索引
+					int lodIndex = 0;
+					for (int i = 0; i < detailLevels.Length - 1; i++) {
+						if (viewerDstFromNearestEdge > detailLevels [i].visibleDstThreshold) {
+							lodIndex = i + 1;
+						} else {
+							break;
+						}
+					}
+					//如果细节层次索引和之前的不一样就重新加载网格
+					if (lodIndex != previousLODIndex) {
+						LODMesh lodMesh = lodMeshes [lodIndex];
+						if (lodMesh.hasMesh) {
+							previousLODIndex = lodIndex;
+							meshFilter.mesh = lodMesh.mesh;
+						} else if (!lodMesh.hasRequestedMesh) {//没有数据就重新请求
+							lodMesh.RequestMesh (mapData);
+						}
+					}
+				}
+				SetVisible (visible);
+			}
 		}
 
 		/// <summary>
@@ -138,6 +192,47 @@ public class EndlessTerrain : MonoBehaviour
 		public bool IsVisible() {
 			return meshObject.activeSelf;
 		}
+	}
+	
+	/// <summary>
+	/// 细节层次网格类
+	/// </summary>
+	class LODMesh {
+		public Mesh mesh;//网格对象
+		public bool hasRequestedMesh;//是否已经请求了网格
+		public bool hasMesh;//是否收到了网格
+		int lod;//当前网格的细节层次2
+		Action updateCallback;//回调函数用于更新地形块
 
+		public LODMesh(int lod, System.Action updateCallback) {
+			this.lod = lod;
+			this.updateCallback = updateCallback;
+		}
+
+		/// <summary>
+		/// 收到了网格数据后的回调函数
+		/// </summary>
+		/// <param name="meshData"></param>
+		void OnMeshDataReceived(MeshData meshData) {
+			mesh = meshData.CreateMesh ();//创建网格
+			hasMesh = true;//设置收到了数据
+			updateCallback();//执行回调函数
+		}
+
+		/// <summary>
+		/// 请求网格
+		/// </summary>
+		/// <param name="mapData"></param>
+		public void RequestMesh(MapData mapData) {
+			hasRequestedMesh = true;//已经请求了网格
+			mapGenerator.RequestMeshData(mapData, lod, OnMeshDataReceived);//调用生成器的请求方法
+		}
+
+	}
+
+	[Serializable]
+	public struct LODInfo {
+		public int lod;
+		public float visibleDstThreshold;
 	}
 }

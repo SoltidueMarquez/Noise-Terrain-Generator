@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [Serializable]
 public enum DrawMode {NoiseMap, ColourMap, Mesh};
@@ -9,7 +10,7 @@ public class MapGenerator : MonoBehaviour {
 	[Tooltip("绘制模式")] public DrawMode drawMode;
 	
 	public const int mapChunkSize = 241;
-	[Range(0,6)] public int levelOfDetail;
+	[Range(0,6)] public int editorPreviewLOD;
 	
 	[Header("噪音设置")]
 	[Tooltip("噪声缩放指数")] public float noiseScale;
@@ -35,24 +36,25 @@ public class MapGenerator : MonoBehaviour {
 	/// 绘制地形方法
 	/// </summary>
 	public void DrawMapInEditor() {
-		MapData mapData = GenerateMapData ();//声明地形数据
+		MapData mapData = GenerateMapData (Vector2.zero);//声明地形数据
 		MapDisplay display = FindObjectOfType<MapDisplay> ();
 		if (drawMode == DrawMode.NoiseMap) {
 			display.DrawTexture (TextureGenerator.TextureFromHeightMap (mapData.heightMap));
 		} else if (drawMode == DrawMode.ColourMap) {
 			display.DrawTexture (TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
 		} else if (drawMode == DrawMode.Mesh) {
-			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, levelOfDetail), TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
+			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, editorPreviewLOD), TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
 		}
 	}
-	
+
 	/// <summary>
 	/// 请求地形地图数据
 	/// </summary>
+	/// <param name="centre"></param>
 	/// <param name="callback">回调函数</param>
-	public void RequestMapData(Action<MapData> callback) {
+	public void RequestMapData(Vector2 centre, Action<MapData> callback) {
 		ThreadStart threadStart = delegate {
-			MapDataThread (callback);
+			MapDataThread (centre, callback);
 		};
 		//创建线程启动地形数据线程委托
 		new Thread (threadStart).Start ();
@@ -61,9 +63,10 @@ public class MapGenerator : MonoBehaviour {
 	/// <summary>
 	/// 地形地图数据线程
 	/// </summary>
+	/// <param name="centre"></param>
 	/// <param name="callback">回调函数</param>
-	void MapDataThread(Action<MapData> callback) {
-		MapData mapData = GenerateMapData ();//生成地形数据
+	void MapDataThread(Vector2 centre, Action<MapData> callback) {
+		MapData mapData = GenerateMapData(centre);//生成地形数据
 		lock (mapDataThreadInfoQueue) {//资源锁
 			mapDataThreadInfoQueue.Enqueue (new MapThreadInfo<MapData> (callback, mapData));
 		}
@@ -73,10 +76,11 @@ public class MapGenerator : MonoBehaviour {
 	/// 请求地形网格数据
 	/// </summary>
 	/// <param name="mapData"></param>
+	/// <param name="lod">细节层次</param>
 	/// <param name="callback"></param>
-	public void RequestMeshData(MapData mapData, Action<MeshData> callback) {
+	public void RequestMeshData(MapData mapData, int lod, Action<MeshData> callback) {
 		ThreadStart threadStart = delegate {
-			MeshDataThread (mapData, callback);
+			MeshDataThread (mapData, lod, callback);
 		};
 
 		new Thread (threadStart).Start ();
@@ -86,9 +90,10 @@ public class MapGenerator : MonoBehaviour {
 	/// 地形网格数据线程
 	/// </summary>
 	/// <param name="mapData"></param>
+	/// <param name="lod">细节层次</param>
 	/// <param name="callback"></param>
-	void MeshDataThread(MapData mapData, Action<MeshData> callback) {
-		MeshData meshData = MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, levelOfDetail);
+	void MeshDataThread(MapData mapData, int lod, Action<MeshData> callback) {
+		MeshData meshData = MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, lod);
 		lock (meshDataThreadInfoQueue) {
 			meshDataThreadInfoQueue.Enqueue (new MapThreadInfo<MeshData> (callback, meshData));
 		}
@@ -114,8 +119,8 @@ public class MapGenerator : MonoBehaviour {
 	/// 生成地形数据
 	/// </summary>
 	/// <returns></returns>
-	private MapData GenerateMapData() {
-		float[,] noiseMap = Noise.GenerateNoiseMap (mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistance, lacunarity, offset);
+	MapData GenerateMapData(Vector2 centre) {
+		float[,] noiseMap = Noise.GenerateNoiseMap (mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistance, lacunarity, centre + offset);
 
 		Color[] colourMap = new Color[mapChunkSize * mapChunkSize];//声明一维颜色地图
 		for (int y = 0; y < mapChunkSize; y++) {
