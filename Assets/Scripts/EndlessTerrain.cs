@@ -7,6 +7,8 @@ using System.Collections.Generic;
 /// </summary>
 public class EndlessTerrain : MonoBehaviour
 {
+	const float scale = 5f;
+	
 	const float viewerMoveThresholdForChunkUpdate = 25f;
 	const float sqrViewerMoveThresholdForChunkUpdate = viewerMoveThresholdForChunkUpdate * viewerMoveThresholdForChunkUpdate;
 
@@ -25,7 +27,7 @@ public class EndlessTerrain : MonoBehaviour
 	
 	[Tooltip("坐标与地形块的字典")] private Dictionary<Vector2, TerrainChunk> terrainChunkDictionary = new Dictionary<Vector2, TerrainChunk>();
 	[Header("动态更新")]
-	[SerializeField, Tooltip("上次更新时可见的地形块列表")] List<TerrainChunk> terrainChunksVisibleLastUpdate = new List<TerrainChunk>();
+	[SerializeField, Tooltip("上次更新时可见的地形块列表")] static List<TerrainChunk> terrainChunksVisibleLastUpdate = new List<TerrainChunk>();
 
 	void Start() {
 		mapGenerator = FindObjectOfType<MapGenerator> ();//查找MapGenerator
@@ -38,7 +40,7 @@ public class EndlessTerrain : MonoBehaviour
 	}
 
 	void Update() {
-		viewerPosition = new Vector2 (viewer.position.x, viewer.position.z);
+		viewerPosition = new Vector2 (viewer.position.x, viewer.position.z) / scale;
 
 		//只有当观察者移动超过一个阈值距离之后才更新地块(平方计算)
 		if ((viewerPositionOld - viewerPosition).sqrMagnitude > sqrViewerMoveThresholdForChunkUpdate) {
@@ -65,9 +67,6 @@ public class EndlessTerrain : MonoBehaviour
 				//在尚未创建出地形块的地方创建出新的地形块
 				if (terrainChunkDictionary.ContainsKey (viewedChunkCoord)) {//如果地形块字典包含“可视块坐标”
 					terrainChunkDictionary [viewedChunkCoord].UpdateTerrainChunk ();//更新当前块的是否可视化
-					if (terrainChunkDictionary [viewedChunkCoord].IsVisible ()) {//如果可见则加入可见地形块列表
-						terrainChunksVisibleLastUpdate.Add (terrainChunkDictionary [viewedChunkCoord]);
-					}
 				} else {//不包含就实例化一个新的地形块添加进字典
 					terrainChunkDictionary.Add (viewedChunkCoord, new TerrainChunk (viewedChunkCoord, chunkSize, detailLevels, transform, mapMaterial));
 				}
@@ -117,8 +116,9 @@ public class EndlessTerrain : MonoBehaviour
 			meshFilter = meshObject.AddComponent<MeshFilter>();
 			meshRenderer.material = material;
 			
-			meshObject.transform.position = positionV3;//设置网格对象的位置
+			meshObject.transform.position = positionV3 * scale;//设置网格对象的位置
 			meshObject.transform.parent = parent;
+			meshObject.transform.localScale = Vector3.one * scale;
 			SetVisible(false);
 			
 			//创建细节层次网格数组
@@ -172,6 +172,8 @@ public class EndlessTerrain : MonoBehaviour
 							lodMesh.RequestMesh (mapData);
 						}
 					}
+					
+					terrainChunksVisibleLastUpdate.Add (this);//将自己添加到上次可见地形块列表中
 				}
 				SetVisible (visible);
 			}

@@ -8,9 +8,9 @@ using UnityEngine.Serialization;
 public enum DrawMode {NoiseMap, ColourMap, Mesh};
 public class MapGenerator : MonoBehaviour {
 	[Tooltip("绘制模式")] public DrawMode drawMode;
-	
-	public const int mapChunkSize = 241;
-	[Range(0,6)] public int editorPreviewLOD;
+	[Tooltip("噪声归一化模式")] public Noise.NormalizeMode normalizeMode;
+	[Tooltip("地形方块边长")]public const int mapChunkSize = 241;
+	[Range(0, 6), Tooltip("细节层次")] public int editorPreviewLOD;
 	
 	[Header("噪音设置")]
 	[Tooltip("噪声缩放指数")] public float noiseScale;
@@ -120,15 +120,16 @@ public class MapGenerator : MonoBehaviour {
 	/// </summary>
 	/// <returns></returns>
 	MapData GenerateMapData(Vector2 centre) {
-		float[,] noiseMap = Noise.GenerateNoiseMap (mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistance, lacunarity, centre + offset);
+		float[,] noiseMap = Noise.GenerateNoiseMap (mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistance, lacunarity, centre + offset, normalizeMode);
 
 		Color[] colourMap = new Color[mapChunkSize * mapChunkSize];//声明一维颜色地图
 		for (int y = 0; y < mapChunkSize; y++) {
 			for (int x = 0; x < mapChunkSize; x++) {
 				float currentHeight = noiseMap [x, y];//获取当前地图点高度
 				for (int i = 0; i < regions.Length; i++) {//遍历所有地形类型设置当前点的类型
-					if (currentHeight <= regions [i].height) {//如果当前区域小于等于地形类型规定的高度就设置颜色地图
+					if (currentHeight >= regions [i].height) {//如果当前区域小于等于地形类型规定的高度就设置颜色地图
 						colourMap [y * mapChunkSize + x] = regions [i].colour;
+					} else {
 						break;
 					}
 				}
