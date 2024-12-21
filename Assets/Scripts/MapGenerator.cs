@@ -2,10 +2,9 @@
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 [Serializable]
-public enum DrawMode {NoiseMap, ColourMap, Mesh};
+public enum DrawMode {NoiseMap, ColourMap, Mesh, FalloffMap};
 public class MapGenerator : MonoBehaviour {
 	[Tooltip("绘制模式")] public DrawMode drawMode;
 	[Tooltip("噪声归一化模式")] public Noise.NormalizeMode normalizeMode;
@@ -24,14 +23,23 @@ public class MapGenerator : MonoBehaviour {
 	[Header("网格设置")]
 	[Tooltip("网格高度乘数")] public float meshHeightMultiplier;
 	[Tooltip("不同高度收乘数影响的程度")] public AnimationCurve meshHeightCurve;
-
-	[Tooltip("是否自动更新")] public bool autoUpdate;
-
+	
+	[Header("纹理设置")]
 	[Tooltip("地形类型数组")] public TerrainType[] regions;
+	
+	[Header("应用设置")]
+	[Tooltip("是否应用衰减贴图")] public bool useFalloff;
+	[Tooltip("衰减贴图")] float[,] falloffMap;
+	
+	[Tooltip("是否自动更新")] public bool autoUpdate;
 	
 	[Tooltip("地形地图线程信息队列")] Queue<MapThreadInfo<MapData>> mapDataThreadInfoQueue = new Queue<MapThreadInfo<MapData>>();
 	[Tooltip("地形网格线程信息队列")] Queue<MapThreadInfo<MeshData>> meshDataThreadInfoQueue = new Queue<MapThreadInfo<MeshData>>();
 
+	void Awake() {//生成衰减贴图
+		falloffMap = FalloffGenerator.GenerateFalloffMap (mapChunkSize);
+	}
+	
 	/// <summary>
 	/// 绘制地形方法
 	/// </summary>
@@ -44,6 +52,8 @@ public class MapGenerator : MonoBehaviour {
 			display.DrawTexture (TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
 		} else if (drawMode == DrawMode.Mesh) {
 			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, editorPreviewLOD), TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
+		} else if (drawMode == DrawMode.FalloffMap) {
+			display.DrawTexture(TextureGenerator.TextureFromHeightMap(FalloffGenerator.GenerateFalloffMap(mapChunkSize)));
 		}
 	}
 
@@ -125,6 +135,9 @@ public class MapGenerator : MonoBehaviour {
 		Color[] colourMap = new Color[mapChunkSize * mapChunkSize];//声明一维颜色地图
 		for (int y = 0; y < mapChunkSize; y++) {
 			for (int x = 0; x < mapChunkSize; x++) {
+				if (useFalloff) {//如果使用衰减地图，则让噪音图减去衰减贴图
+					noiseMap [x, y] = Mathf.Clamp01(noiseMap [x, y] - falloffMap [x, y]);
+				}
 				float currentHeight = noiseMap [x, y];//获取当前地图点高度
 				for (int i = 0; i < regions.Length; i++) {//遍历所有地形类型设置当前点的类型
 					if (currentHeight >= regions [i].height) {//如果当前区域小于等于地形类型规定的高度就设置颜色地图
@@ -147,6 +160,8 @@ public class MapGenerator : MonoBehaviour {
 		if (octaves < 0) {
 			octaves = 0;
 		}
+		
+		falloffMap = FalloffGenerator.GenerateFalloffMap (mapChunkSize);
 	}
 	
 	/// <summary>
