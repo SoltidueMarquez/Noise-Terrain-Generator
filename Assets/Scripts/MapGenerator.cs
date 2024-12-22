@@ -8,7 +8,7 @@ public enum DrawMode {NoiseMap, ColourMap, Mesh, FalloffMap};
 public class MapGenerator : MonoBehaviour {
 	[Tooltip("绘制模式")] public DrawMode drawMode;
 	[Tooltip("噪声归一化模式")] public Noise.NormalizeMode normalizeMode;
-	[Tooltip("地形方块边长")]public const int mapChunkSize = 241;
+	[Tooltip("地形方块边长")]public const int mapChunkSize = 239;//为了补偿网格边界计算加上2时会变为241，再-1会变成240
 	[Range(0, 6), Tooltip("细节层次")] public int editorPreviewLOD;
 	
 	[Header("噪音设置")]
@@ -129,8 +129,10 @@ public class MapGenerator : MonoBehaviour {
 	/// 生成地形数据
 	/// </summary>
 	/// <returns></returns>
-	MapData GenerateMapData(Vector2 centre) {
-		float[,] noiseMap = Noise.GenerateNoiseMap (mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistance, lacunarity, centre + offset, normalizeMode);
+	MapData GenerateMapData(Vector2 centre)
+	{
+		float[,] noiseMap = Noise.GenerateNoiseMap(mapChunkSize + 2, mapChunkSize + 2, seed, noiseScale, octaves,
+			persistance, lacunarity, centre + offset, normalizeMode);//+2是为了补偿边界用于计算边界法线
 
 		Color[] colourMap = new Color[mapChunkSize * mapChunkSize];//声明一维颜色地图
 		for (int y = 0; y < mapChunkSize; y++) {
