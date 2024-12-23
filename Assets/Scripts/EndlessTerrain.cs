@@ -7,7 +7,7 @@ using System.Collections.Generic;
 /// </summary>
 public class EndlessTerrain : MonoBehaviour
 {
-	const float scale = 5f;
+	const float scale = 2.5f;
 	
 	const float viewerMoveThresholdForChunkUpdate = 25f;
 	const float sqrViewerMoveThresholdForChunkUpdate = viewerMoveThresholdForChunkUpdate * viewerMoveThresholdForChunkUpdate;
@@ -87,6 +87,7 @@ public class EndlessTerrain : MonoBehaviour
 
 		MeshRenderer meshRenderer;//网格渲染器
 		MeshFilter meshFilter;//网格过滤器
+		MeshCollider meshCollider;//网格碰撞器
 		
 		LODInfo[] detailLevels;//细节层次设置
 		LODMesh[] lodMeshes;//细节层次网格
@@ -114,6 +115,7 @@ public class EndlessTerrain : MonoBehaviour
 			meshObject = new GameObject("Terrain Chunk");
 			meshRenderer = meshObject.AddComponent<MeshRenderer>();
 			meshFilter = meshObject.AddComponent<MeshFilter>();
+			meshCollider = meshObject.AddComponent<MeshCollider>();
 			meshRenderer.material = material;
 			
 			meshObject.transform.position = positionV3 * scale;//设置网格对象的位置
@@ -168,6 +170,7 @@ public class EndlessTerrain : MonoBehaviour
 						if (lodMesh.hasMesh) {
 							previousLODIndex = lodIndex;
 							meshFilter.mesh = lodMesh.mesh;
+							meshCollider.sharedMesh = lodMesh.mesh;
 						} else if (!lodMesh.hasRequestedMesh) {//没有数据就重新请求
 							lodMesh.RequestMesh (mapData);
 						}
