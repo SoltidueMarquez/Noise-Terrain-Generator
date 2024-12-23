@@ -72,6 +72,8 @@ public static class MeshGenerator {
 			}
 		}
 
+		meshData.BakeNormals();//在线程中计算每个地形块的法线数组
+		
 		return meshData;
 	}
 }
@@ -84,7 +86,8 @@ public class MeshData
 	[Tooltip("顶点数组")] Vector3[] vertices;
 	[Tooltip("三角形数组")] int[] triangles;
 	[Tooltip("uv映射数组")] Vector2[] uvs;
-
+	[Tooltip("烘培的法线")] Vector3[] bakedNormals;
+	
 	Vector3[] borderVertices;//边界顶点数组
 	int[] borderTriangles;//边界三角形
 	
@@ -204,6 +207,10 @@ public class MeshData
 		return Vector3.Cross (sideAB, sideAC).normalized;
 	}
 	
+	public void BakeNormals() {//计算法线
+		bakedNormals = CalculateNormals ();
+	}
+	
 	/// <summary>
 	/// 创建网格
 	/// </summary>
@@ -213,7 +220,7 @@ public class MeshData
 		mesh.vertices = vertices;
 		mesh.triangles = triangles;
 		mesh.uv = uvs;
-		mesh.normals = CalculateNormals ();//便于光照效果呈现
+		mesh.normals = bakedNormals;//便于光照效果呈现
 		return mesh;
 	}
 }

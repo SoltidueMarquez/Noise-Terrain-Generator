@@ -91,6 +91,7 @@ public class EndlessTerrain : MonoBehaviour
 		
 		LODInfo[] detailLevels;//细节层次设置
 		LODMesh[] lodMeshes;//细节层次网格
+		LODMesh collisionLODMesh;//细节层次网格碰撞体
 
 		MapData mapData;//地图数据
 		bool mapDataReceived;//是否收到了地图数据
@@ -127,6 +128,9 @@ public class EndlessTerrain : MonoBehaviour
 			lodMeshes = new LODMesh[detailLevels.Length];
 			for (int i = 0; i < detailLevels.Length; i++) {//为每个细节层次都创建一个网格
 				lodMeshes[i] = new LODMesh(detailLevels[i].lod, UpdateTerrainChunk);
+				if (detailLevels[i].useForCollider) {
+					collisionLODMesh = lodMeshes[i];
+				}
 			}
 
 			mapGenerator.RequestMapData(position,OnMapDataReceived);//请求生成地图数据
@@ -170,9 +174,16 @@ public class EndlessTerrain : MonoBehaviour
 						if (lodMesh.hasMesh) {
 							previousLODIndex = lodIndex;
 							meshFilter.mesh = lodMesh.mesh;
-							meshCollider.sharedMesh = lodMesh.mesh;
 						} else if (!lodMesh.hasRequestedMesh) {//没有数据就重新请求
 							lodMesh.RequestMesh (mapData);
+						}
+					}
+					//只为最近的那些网格增加碰撞体
+					if (lodIndex == 0) {
+						if (collisionLODMesh.hasMesh) {
+							meshCollider.sharedMesh = collisionLODMesh.mesh;
+						} else if (!collisionLODMesh.hasRequestedMesh) {
+							collisionLODMesh.RequestMesh (mapData);
 						}
 					}
 					
@@ -239,5 +250,6 @@ public class EndlessTerrain : MonoBehaviour
 	public struct LODInfo {
 		public int lod;
 		public float visibleDstThreshold;
+		public bool useForCollider;
 	}
 }
