@@ -6,9 +6,10 @@ using UnityEngine;
 [Serializable]
 public enum DrawMode {NoiseMap, ColourMap, Mesh, FalloffMap};
 public class MapGenerator : MonoBehaviour {
+	static MapGenerator instance;
+	
 	[Tooltip("绘制模式")] public DrawMode drawMode;
 	[Tooltip("噪声归一化模式")] public Noise.NormalizeMode normalizeMode;
-	[Tooltip("地形方块边长")]public const int mapChunkSize = 239;//为了补偿网格边界计算加上2时会变为241，再-1会变成240
 	[Range(0, 6), Tooltip("细节层次")] public int editorPreviewLOD;
 	
 	[Header("噪音设置")]
@@ -30,7 +31,7 @@ public class MapGenerator : MonoBehaviour {
 	[Header("应用设置")]
 	[Tooltip("是否应用衰减贴图")] public bool useFalloff;
 	[Tooltip("衰减贴图")] float[,] falloffMap;
-	
+	[Tooltip("是否使用平面着色")] public bool useFlatShading;
 	[Tooltip("是否自动更新")] public bool autoUpdate;
 	
 	[Tooltip("地形地图线程信息队列")] Queue<MapThreadInfo<MapData>> mapDataThreadInfoQueue = new Queue<MapThreadInfo<MapData>>();
@@ -38,6 +39,25 @@ public class MapGenerator : MonoBehaviour {
 
 	void Awake() {//生成衰减贴图
 		falloffMap = FalloffGenerator.GenerateFalloffMap (mapChunkSize);
+		instance = this;
+	}
+	
+	/// <summary>
+	/// 地图块边长(公共静态整数)
+	/// 为了补偿网格边界计算加上2时会变为241，再-1会变成240，
+	/// 但是240对于平面着色会有点多，所以平面着色时使用96(不能被10整除)
+	/// </summary>
+	public static int mapChunkSize {
+		get {
+			if (instance == null) {
+				instance = FindObjectOfType<MapGenerator>();
+			}
+			if (instance.useFlatShading) {
+				return 95;
+			} else {
+				return 239;
+			}
+		}
 	}
 	
 	/// <summary>
@@ -51,7 +71,7 @@ public class MapGenerator : MonoBehaviour {
 		} else if (drawMode == DrawMode.ColourMap) {
 			display.DrawTexture (TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
 		} else if (drawMode == DrawMode.Mesh) {
-			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, editorPreviewLOD), TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
+			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, editorPreviewLOD,useFlatShading), TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
 		} else if (drawMode == DrawMode.FalloffMap) {
 			display.DrawTexture(TextureGenerator.TextureFromHeightMap(FalloffGenerator.GenerateFalloffMap(mapChunkSize)));
 		}
@@ -102,8 +122,9 @@ public class MapGenerator : MonoBehaviour {
 	/// <param name="mapData"></param>
 	/// <param name="lod">细节层次</param>
 	/// <param name="callback"></param>
-	void MeshDataThread(MapData mapData, int lod, Action<MeshData> callback) {
-		MeshData meshData = MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, lod);
+	void MeshDataThread(MapData mapData, int lod, Action<MeshData> callback)
+	{
+		MeshData meshData = MeshGenerator.GenerateTerrainMesh(mapData.heightMap, meshHeightMultiplier, meshHeightCurve, lod, useFlatShading);
 		lock (meshDataThreadInfoQueue) {
 			meshDataThreadInfoQueue.Enqueue (new MapThreadInfo<MeshData> (callback, meshData));
 		}

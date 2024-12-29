@@ -12,7 +12,7 @@ public static class MeshGenerator {
 	/// <param name="heightCurve">不同高度收乘数影响的程度曲线</param>
 	/// <param name="levelOfDetail">LOD层数</param>
 	/// <returns></returns>
-	public static MeshData GenerateTerrainMesh(float[,] heightMap, float heightMultiplier, AnimationCurve _heightCurve, int levelOfDetail) {
+	public static MeshData GenerateTerrainMesh(float[,] heightMap, float heightMultiplier, AnimationCurve _heightCurve, int levelOfDetail, bool useFlatShading) {
 		AnimationCurve heightCurve = new AnimationCurve (_heightCurve.keys);//创建一个新的动画曲线，让线程们可以正常访问
 		
 		int meshSimplificationIncrement = (levelOfDetail == 0)?1:levelOfDetail * 2;//网格简化增量，就是LOD系数乘以2(为0时步长为1)，作为顶点的迭代步数
@@ -25,8 +25,8 @@ public static class MeshGenerator {
 		float topLeftZ = (meshSizeUnsimplified - 1) / 2f;
 		
 		int verticesPerLine = (meshSize - 1) / meshSimplificationIncrement + 1; //计算每一行的顶点数
-		
-		MeshData meshData = new MeshData (verticesPerLine);//网格数据
+
+		MeshData meshData = new MeshData(verticesPerLine, useFlatShading);//网格数据
 		
 		int[][] vertexIndicesMap = new int[borderedSize][];//顶点索引映射
 		for (int index = 0; index < borderedSize; index++)
@@ -69,10 +69,12 @@ public static class MeshGenerator {
 					meshData.AddTriangle (a,d,c);//添加两个三角形
 					meshData.AddTriangle (d,a,b);
 				}
+				
+				vertexIndex++;
 			}
 		}
 
-		meshData.BakeNormals();//在线程中计算每个地形块的法线数组
+		meshData.ProcessMesh();//在线程中计算每个地形块的法线数组
 		
 		return meshData;
 	}
@@ -93,12 +95,17 @@ public class MeshData
 	
 	[Tooltip("当前的三角形顶点索引")] int triangleIndex;
 	[Tooltip("当前的边界三角形顶点索引")] int borderTriangleIndex;
+	
+	[Tooltip("是否使用平面着色")] bool useFlatShading;
 
 	/// <summary>
 	/// 构造函数
 	/// </summary>
 	/// <param name="verticesPerLine">每行的顶点数</param>
-	public MeshData(int verticesPerLine) {
+	/// <param name="useFlatShading">是否使用平面着色</param>
+	public MeshData(int verticesPerLine, bool useFlatShading) {
+		this.useFlatShading = useFlatShading;
+		
 		vertices = new Vector3[verticesPerLine * verticesPerLine];//初始化顶点数组
 		uvs = new Vector2[verticesPerLine * verticesPerLine];
 		triangles = new int[(verticesPerLine-1)*(verticesPerLine-1)*6];//三角形数组的大小是（网格宽度-1）*（网格高度-1）*6
@@ -207,8 +214,35 @@ public class MeshData
 		return Vector3.Cross (sideAB, sideAC).normalized;
 	}
 	
-	public void BakeNormals() {//计算法线
+	public void ProcessMesh() {
+		if (useFlatShading) {//如果使用平面着色就使用平面着色的方法，不需要考虑法线因为不会有接缝问题
+			FlatShading ();
+		} else {//否则烘培法线，需要保持边界法线的一致性来避免接缝
+			BakeNormals ();
+		}
+	}
+
+	private void BakeNormals() {//计算法线
 		bakedNormals = CalculateNormals ();
+	}
+	
+	/// <summary>
+	/// 平面着色
+	/// 平面着色（Flat Shading）通常是通过将每个三角形的所有三个顶点都使用相同的法线来实现的，
+	/// 从而达到一个“平面”的效果，而不是每个顶点都独立计算法线。这样每个三角形的法线是相同的，而不是基于顶点的法线插值。
+	/// </summary>
+	void FlatShading() {
+		Vector3[] flatShadedVertices = new Vector3[triangles.Length];//平面着色顶点数组，长度等于三角形的数组
+		Vector2[] flatShadedUvs = new Vector2[triangles.Length];//平面着色uv数组
+
+		for (int i = 0; i < triangles.Length; i++) {//遍历初始化平面着色顶点数组与uv数组
+			flatShadedVertices[i] = vertices[triangles[i]];
+			flatShadedUvs[i] = uvs[triangles[i]];
+			triangles[i] = i;
+		}
+
+		vertices = flatShadedVertices;
+		uvs = flatShadedUvs;
 	}
 	
 	/// <summary>
@@ -220,7 +254,11 @@ public class MeshData
 		mesh.vertices = vertices;
 		mesh.triangles = triangles;
 		mesh.uv = uvs;
-		mesh.normals = bakedNormals;//便于光照效果呈现
+		if (useFlatShading) {//如果使用平面着色就直接RecalculateNormals
+			mesh.RecalculateNormals();
+		} else {//否则用预烘培的法线
+			mesh.normals = bakedNormals;
+		}
 		return mesh;
 	}
 }
