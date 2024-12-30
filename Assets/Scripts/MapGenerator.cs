@@ -1,45 +1,39 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using Data;
 using UnityEngine;
+using TerrainData = Data.TerrainData;
 
 [Serializable]
-public enum DrawMode {NoiseMap, ColourMap, Mesh, FalloffMap};
+public enum DrawMode {NoiseMap, FalloffMap, Mesh};
 public class MapGenerator : MonoBehaviour {
 	static MapGenerator instance;
 	
 	[Tooltip("绘制模式")] public DrawMode drawMode;
-	[Tooltip("噪声归一化模式")] public Noise.NormalizeMode normalizeMode;
+	
+	[Tooltip("地形数据")] public TerrainData terrainData;
+	[Tooltip("噪音数据")] public NoiseData noiseData;
+	[Tooltip("纹理数据")] public TextureData textureData;
+	
+	public Material terrainMaterial;
+	
 	[Range(0, 6), Tooltip("细节层次")] public int editorPreviewLOD;
 	
-	[Header("噪音设置")]
-	[Tooltip("噪声缩放指数")] public float noiseScale;
-	[Tooltip("八度音阶的数量")] public int octaves;
-	[Range(0, 1), Tooltip("持久性值")] public float persistance;
-	[Tooltip("间隙度值")] public float lacunarity;
-
-	[Tooltip("种子")] public int seed;//如果 seed 是固定的，则每次运行程序时，生成的随机数序列都是一样的
-	[Tooltip("向量偏移量")] public Vector2 offset;
-	
-	[Header("网格设置")]
-	[Tooltip("网格高度乘数")] public float meshHeightMultiplier;
-	[Tooltip("不同高度收乘数影响的程度")] public AnimationCurve meshHeightCurve;
-	
-	[Header("纹理设置")]
-	[Tooltip("地形类型数组")] public TerrainType[] regions;
-	
-	[Header("应用设置")]
-	[Tooltip("是否应用衰减贴图")] public bool useFalloff;
-	[Tooltip("衰减贴图")] float[,] falloffMap;
-	[Tooltip("是否使用平面着色")] public bool useFlatShading;
 	[Tooltip("是否自动更新")] public bool autoUpdate;
+	[Tooltip("衰减贴图")] float[,] falloffMap;
 	
 	[Tooltip("地形地图线程信息队列")] Queue<MapThreadInfo<MapData>> mapDataThreadInfoQueue = new Queue<MapThreadInfo<MapData>>();
 	[Tooltip("地形网格线程信息队列")] Queue<MapThreadInfo<MeshData>> meshDataThreadInfoQueue = new Queue<MapThreadInfo<MeshData>>();
 
-	void Awake() {//生成衰减贴图
-		falloffMap = FalloffGenerator.GenerateFalloffMap (mapChunkSize);
-		instance = this;
+	void OnValuesUpdated() {
+		if (!Application.isPlaying) {//如果不是在游戏运行模式的话，绘制一张新地图
+			DrawMapInEditor();
+		}
+	}
+
+	void OnTextureValuesUpdated() {
+		textureData.ApplyToMaterial (terrainMaterial);
 	}
 	
 	/// <summary>
@@ -47,12 +41,9 @@ public class MapGenerator : MonoBehaviour {
 	/// 为了补偿网格边界计算加上2时会变为241，再-1会变成240，
 	/// 但是240对于平面着色会有点多，所以平面着色时使用96(不能被10整除)
 	/// </summary>
-	public static int mapChunkSize {
-		get {
-			if (instance == null) {
-				instance = FindObjectOfType<MapGenerator>();
-			}
-			if (instance.useFlatShading) {
+	public int mapChunkSize {
+		get{
+			if (terrainData.useFlatShading) {
 				return 95;
 			} else {
 				return 239;
@@ -68,10 +59,8 @@ public class MapGenerator : MonoBehaviour {
 		MapDisplay display = FindObjectOfType<MapDisplay> ();
 		if (drawMode == DrawMode.NoiseMap) {
 			display.DrawTexture (TextureGenerator.TextureFromHeightMap (mapData.heightMap));
-		} else if (drawMode == DrawMode.ColourMap) {
-			display.DrawTexture (TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
 		} else if (drawMode == DrawMode.Mesh) {
-			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, meshHeightMultiplier, meshHeightCurve, editorPreviewLOD,useFlatShading), TextureGenerator.TextureFromColourMap (mapData.colourMap, mapChunkSize, mapChunkSize));
+			display.DrawMesh (MeshGenerator.GenerateTerrainMesh (mapData.heightMap, terrainData.meshHeightMultiplier, terrainData.meshHeightCurve, editorPreviewLOD,terrainData.useFlatShading));
 		} else if (drawMode == DrawMode.FalloffMap) {
 			display.DrawTexture(TextureGenerator.TextureFromHeightMap(FalloffGenerator.GenerateFalloffMap(mapChunkSize)));
 		}
@@ -124,7 +113,7 @@ public class MapGenerator : MonoBehaviour {
 	/// <param name="callback"></param>
 	void MeshDataThread(MapData mapData, int lod, Action<MeshData> callback)
 	{
-		MeshData meshData = MeshGenerator.GenerateTerrainMesh(mapData.heightMap, meshHeightMultiplier, meshHeightCurve, lod, useFlatShading);
+		MeshData meshData = MeshGenerator.GenerateTerrainMesh (mapData.heightMap, terrainData.meshHeightMultiplier, terrainData.meshHeightCurve, lod,terrainData.useFlatShading);
 		lock (meshDataThreadInfoQueue) {
 			meshDataThreadInfoQueue.Enqueue (new MapThreadInfo<MeshData> (callback, meshData));
 		}
@@ -152,39 +141,42 @@ public class MapGenerator : MonoBehaviour {
 	/// <returns></returns>
 	MapData GenerateMapData(Vector2 centre)
 	{
-		float[,] noiseMap = Noise.GenerateNoiseMap(mapChunkSize + 2, mapChunkSize + 2, seed, noiseScale, octaves,
-			persistance, lacunarity, centre + offset, normalizeMode);//+2是为了补偿边界用于计算边界法线
+		float[,] noiseMap = Noise.GenerateNoiseMap(mapChunkSize + 2, mapChunkSize + 2, noiseData.seed,
+			noiseData.noiseScale, noiseData.octaves, noiseData.persistance, noiseData.lacunarity,
+			centre + noiseData.offset, noiseData.normalizeMode);//+2是为了补偿边界用于计算边界法线
 
-		Color[] colourMap = new Color[mapChunkSize * mapChunkSize];//声明一维颜色地图
-		for (int y = 0; y < mapChunkSize; y++) {
-			for (int x = 0; x < mapChunkSize; x++) {
-				if (useFalloff) {//如果使用衰减地图，则让噪音图减去衰减贴图
-					noiseMap [x, y] = Mathf.Clamp01(noiseMap [x, y] - falloffMap [x, y]);
-				}
-				float currentHeight = noiseMap [x, y];//获取当前地图点高度
-				for (int i = 0; i < regions.Length; i++) {//遍历所有地形类型设置当前点的类型
-					if (currentHeight >= regions [i].height) {//如果当前区域小于等于地形类型规定的高度就设置颜色地图
-						colourMap [y * mapChunkSize + x] = regions [i].colour;
-					} else {
-						break;
+		if (terrainData.useFalloff){ //如果使用衰减地图，则让噪音图减去衰减贴
+			falloffMap ??= FalloffGenerator.GenerateFalloffMap(mapChunkSize + 2);//生成与地图大小相匹配的衰减地图
+			
+			for (int y = 0; y < mapChunkSize + 2; y++) {
+				for (int x = 0; x < mapChunkSize+2; x++) {
+					if (terrainData.useFalloff) {
+						noiseMap [x, y] = Mathf.Clamp01 (noiseMap [x, y] - falloffMap [x, y]);
 					}
+				
 				}
 			}
 		}
 
-		return new MapData (noiseMap, colourMap);
+		return new MapData(noiseMap);
 	}
 
 	//使用验证方法控制值，该方法会在脚本变量值在inspector中改变时自动调用
 	void OnValidate() {
-		if (lacunarity < 1) {
-			lacunarity = 1;
+		//每次某个值更新时先去除原先的订阅，再加上新的订阅，避免重复调用
+		if (terrainData != null) {
+			terrainData.onValuesUpdated -= OnValuesUpdated;
+			terrainData.onValuesUpdated += OnValuesUpdated;
 		}
-		if (octaves < 0) {
-			octaves = 0;
+		if (noiseData != null) {
+			noiseData.onValuesUpdated -= OnValuesUpdated;
+			noiseData.onValuesUpdated += OnValuesUpdated;
 		}
-		
-		falloffMap = FalloffGenerator.GenerateFalloffMap (mapChunkSize);
+		if (textureData != null) {
+			textureData.onValuesUpdated -= OnTextureValuesUpdated;
+			textureData.onValuesUpdated += OnTextureValuesUpdated;
+		}
+
 	}
 	
 	/// <summary>
@@ -205,25 +197,13 @@ public class MapGenerator : MonoBehaviour {
 }
 
 /// <summary>
-/// 地形类型结构体
-/// </summary>
-[System.Serializable]
-public struct TerrainType {
-	[Tooltip("地形名称")] public string name;
-	[Tooltip("地形高度")] public float height;
-	[Tooltip("对应颜色")] public Color colour;
-}
-
-/// <summary>
 /// 地图数据
 /// </summary>
 public struct MapData {
 	public readonly float[,] heightMap;//高度图
-	public readonly Color[] colourMap;//颜色图
 
-	public MapData (float[,] heightMap, Color[] colourMap)
+	public MapData (float[,] heightMap)
 	{
 		this.heightMap = heightMap;
-		this.colourMap = colourMap;
 	}
 }

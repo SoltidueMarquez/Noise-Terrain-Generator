@@ -7,8 +7,6 @@ using System.Collections.Generic;
 /// </summary>
 public class EndlessTerrain : MonoBehaviour
 {
-	const float scale = 2.5f;
-	
 	const float viewerMoveThresholdForChunkUpdate = 25f;
 	const float sqrViewerMoveThresholdForChunkUpdate = viewerMoveThresholdForChunkUpdate * viewerMoveThresholdForChunkUpdate;
 
@@ -33,14 +31,14 @@ public class EndlessTerrain : MonoBehaviour
 		mapGenerator = FindObjectOfType<MapGenerator> ();//查找MapGenerator
 		
 		maxViewDst = detailLevels[detailLevels.Length - 1].visibleDstThreshold;
-		chunkSize = MapGenerator.mapChunkSize - 1;//实际的网格大小是MapGenerator的mapChunkSize-1
+		chunkSize = mapGenerator.mapChunkSize - 1;//实际的网格大小是MapGenerator的mapChunkSize-1
 		chunksVisibleInViewDst = Mathf.RoundToInt(maxViewDst / chunkSize);//可见地图块数量等于视距能被地图块大小整除的次数
 		
 		UpdateVisibleChunks ();
 	}
 
 	void Update() {
-		viewerPosition = new Vector2 (viewer.position.x, viewer.position.z) / scale;
+		viewerPosition = new Vector2 (viewer.position.x, viewer.position.z) / mapGenerator.terrainData.uniformScale;
 
 		//只有当观察者移动超过一个阈值距离之后才更新地块(平方计算)
 		if ((viewerPositionOld - viewerPosition).sqrMagnitude > sqrViewerMoveThresholdForChunkUpdate) {
@@ -119,9 +117,9 @@ public class EndlessTerrain : MonoBehaviour
 			meshCollider = meshObject.AddComponent<MeshCollider>();
 			meshRenderer.material = material;
 			
-			meshObject.transform.position = positionV3 * scale;//设置网格对象的位置
+			meshObject.transform.position = positionV3 * mapGenerator.terrainData.uniformScale;//设置网格对象的位置
 			meshObject.transform.parent = parent;
-			meshObject.transform.localScale = Vector3.one * scale;
+			meshObject.transform.localScale = Vector3.one * mapGenerator.terrainData.uniformScale;
 			SetVisible(false);
 			
 			//创建细节层次网格数组
@@ -143,10 +141,6 @@ public class EndlessTerrain : MonoBehaviour
 		void OnMapDataReceived(MapData mapData) {
 			this.mapData = mapData;//设置地图数据
 			mapDataReceived = true;
-
-			//创建并应用纹理
-			Texture2D texture = TextureGenerator.TextureFromColourMap (mapData.colourMap, MapGenerator.mapChunkSize, MapGenerator.mapChunkSize);
-			meshRenderer.material.mainTexture = texture;
 
 			UpdateTerrainChunk ();
 		}
