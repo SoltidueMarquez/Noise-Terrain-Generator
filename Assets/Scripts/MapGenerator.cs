@@ -26,6 +26,11 @@ public class MapGenerator : MonoBehaviour {
 	[Tooltip("地形地图线程信息队列")] Queue<MapThreadInfo<MapData>> mapDataThreadInfoQueue = new Queue<MapThreadInfo<MapData>>();
 	[Tooltip("地形网格线程信息队列")] Queue<MapThreadInfo<MeshData>> meshDataThreadInfoQueue = new Queue<MapThreadInfo<MeshData>>();
 
+	private void Awake()
+	{
+		textureData.UpdateMeshHeights(terrainMaterial, terrainData.minHeight, terrainData.maxHeight);//更新地形材质
+	}
+
 	void OnValuesUpdated() {
 		if (!Application.isPlaying) {//如果不是在游戏运行模式的话，绘制一张新地图
 			DrawMapInEditor();
@@ -41,20 +46,13 @@ public class MapGenerator : MonoBehaviour {
 	/// 为了补偿网格边界计算加上2时会变为241，再-1会变成240，
 	/// 但是240对于平面着色会有点多，所以平面着色时使用96(不能被10整除)
 	/// </summary>
-	public int mapChunkSize {
-		get{
-			if (terrainData.useFlatShading) {
-				return 95;
-			} else {
-				return 239;
-			}
-		}
-	}
-	
+	public int mapChunkSize => terrainData.useFlatShading ? 95 : 239;
+
 	/// <summary>
 	/// 绘制地形方法
 	/// </summary>
 	public void DrawMapInEditor() {
+		textureData.UpdateMeshHeights(terrainMaterial, terrainData.minHeight, terrainData.maxHeight);//更新地形材质
 		MapData mapData = GenerateMapData (Vector2.zero);//声明地形数据
 		MapDisplay display = FindObjectOfType<MapDisplay> ();
 		if (drawMode == DrawMode.NoiseMap) {

@@ -18,6 +18,7 @@ namespace Editor
 
 			if (GUILayout.Button ("Update")) {
 				data.NotifyOfUpdatedValues();
+				EditorUtility.SetDirty (target);//确保按下按钮能够更新数据
 			}
 		}
 	

@@ -15,14 +15,13 @@ namespace Data
 		/// </summary>
 		protected virtual void OnValidate() {
 			if (autoUpdate) {
-				NotifyOfUpdatedValues ();
+				UnityEditor.EditorApplication.update += NotifyOfUpdatedValues;
 			}
 		}
 
 		public void NotifyOfUpdatedValues() {
-			if (onValuesUpdated != null) {
-				onValuesUpdated ();
-			}
+			UnityEditor.EditorApplication.update -= NotifyOfUpdatedValues;
+			onValuesUpdated?.Invoke();
 		}
 
 	}

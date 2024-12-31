@@ -12,5 +12,9 @@ namespace Data
 		[Header("网格设置")]
 		[Tooltip("网格高度乘数")] public float meshHeightMultiplier;
 		[Tooltip("不同高度收乘数影响的程度")] public AnimationCurve meshHeightCurve;
+		
+		//地形最小与最大高度
+		public float minHeight => uniformScale * meshHeightMultiplier * meshHeightCurve.Evaluate (0);
+		public float maxHeight => uniformScale * meshHeightMultiplier * meshHeightCurve.Evaluate (1);
 	}
 }
