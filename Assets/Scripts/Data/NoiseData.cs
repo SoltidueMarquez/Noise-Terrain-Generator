@@ -16,7 +16,7 @@ namespace Data
 		[Tooltip("种子")] public int seed;//如果 seed 是固定的，则每次运行程序时，生成的随机数序列都是一样的
 		[Tooltip("向量偏移量")] public Vector2 offset;
 
-
+#if UNITY_EDITOR
 		protected override void OnValidate() {
 			if (lacunarity < 1) {
 				lacunarity = 1;
@@ -27,6 +27,6 @@ namespace Data
 
 			base.OnValidate ();
 		}
-
+#endif
 	}
 }

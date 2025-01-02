@@ -9,7 +9,10 @@ public class EndlessTerrain : MonoBehaviour
 {
 	const float viewerMoveThresholdForChunkUpdate = 25f;
 	const float sqrViewerMoveThresholdForChunkUpdate = viewerMoveThresholdForChunkUpdate * viewerMoveThresholdForChunkUpdate;
-
+	const float colliderGenerationDistanceThreshold = 5f;//玩家距离地形块多近才会生成碰撞器
+	
+	[Tooltip("碰撞器细节层次信息")] public int colliderLODIndex;
+	
 	[Tooltip("细节层次信息")] public LODInfo[] detailLevels;
 	[Tooltip("观察者所能看到的最远视距")] public static float maxViewDst;
 	
@@ -25,7 +28,7 @@ public class EndlessTerrain : MonoBehaviour
 	
 	[Tooltip("坐标与地形块的字典")] private Dictionary<Vector2, TerrainChunk> terrainChunkDictionary = new Dictionary<Vector2, TerrainChunk>();
 	[Header("动态更新")]
-	[SerializeField, Tooltip("上次更新时可见的地形块列表")] static List<TerrainChunk> terrainChunksVisibleLastUpdate = new List<TerrainChunk>();
+	[Tooltip("上次更新时可见的地形块列表")] static List<TerrainChunk> visibleTerrainChunks = new List<TerrainChunk>();
 
 	void Start() {
 		mapGenerator = FindObjectOfType<MapGenerator> ();//查找MapGenerator
@@ -39,7 +42,13 @@ public class EndlessTerrain : MonoBehaviour
 
 	void Update() {
 		viewerPosition = new Vector2 (viewer.position.x, viewer.position.z) / mapGenerator.terrainData.uniformScale;
-
+		//如果当前观察者的位置不等于原先的位置，则更新每个可见的地形块的碰撞体
+		if (viewerPosition != viewerPositionOld) {
+			foreach (TerrainChunk chunk in visibleTerrainChunks) {
+				chunk.UpdateCollisionMesh();
+			}
+		}
+		
 		//只有当观察者移动超过一个阈值距离之后才更新地块(平方计算)
 		if ((viewerPositionOld - viewerPosition).sqrMagnitude > sqrViewerMoveThresholdForChunkUpdate) {
 			viewerPositionOld = viewerPosition;
@@ -51,10 +60,11 @@ public class EndlessTerrain : MonoBehaviour
 	/// 更新可见块，不会销毁，每次更新重新设置视野范围内所有块的可见性
 	/// </summary>
 	void UpdateVisibleChunks() {
-		//遍历上次更新中所有可见的块，全部设置为不可见
-		foreach (var t in terrainChunksVisibleLastUpdate){ t.SetVisible (false); }
-		terrainChunksVisibleLastUpdate.Clear ();
-		
+		var alreadyUpdatedChunkCoords = new HashSet<Vector2> ();//先前所有可见块的坐标
+		for (int i = visibleTerrainChunks.Count-1; i >= 0; i--) {//更新所有可见的块，倒序遍历执行移除
+			alreadyUpdatedChunkCoords.Add (visibleTerrainChunks[i].coord);
+			visibleTerrainChunks[i].UpdateTerrainChunk();
+		}
 		//获取当前块的归一化坐标
 		int currentChunkCoordX = Mathf.RoundToInt (viewerPosition.x / chunkSize);
 		int currentChunkCoordY = Mathf.RoundToInt (viewerPosition.y / chunkSize);
@@ -62,13 +72,14 @@ public class EndlessTerrain : MonoBehaviour
 		for (int yOffset = -chunksVisibleInViewDst; yOffset <= chunksVisibleInViewDst; yOffset++) {
 			for (int xOffset = -chunksVisibleInViewDst; xOffset <= chunksVisibleInViewDst; xOffset++) {
 				Vector2 viewedChunkCoord = new Vector2 (currentChunkCoordX + xOffset, currentChunkCoordY + yOffset);
-				//在尚未创建出地形块的地方创建出新的地形块
-				if (terrainChunkDictionary.ContainsKey (viewedChunkCoord)) {//如果地形块字典包含“可视块坐标”
-					terrainChunkDictionary [viewedChunkCoord].UpdateTerrainChunk ();//更新当前块的是否可视化
-				} else {//不包含就实例化一个新的地形块添加进字典
-					terrainChunkDictionary.Add (viewedChunkCoord, new TerrainChunk (viewedChunkCoord, chunkSize, detailLevels, transform, mapMaterial));
+				if (!alreadyUpdatedChunkCoords.Contains(viewedChunkCoord)) {//如果尚未更新的块坐标不包含即将更新的块坐标
+					//在尚未创建出地形块的地方创建出新的地形块
+					if (terrainChunkDictionary.ContainsKey (viewedChunkCoord)) {//如果地形块字典包含“可视块坐标”
+						terrainChunkDictionary [viewedChunkCoord].UpdateTerrainChunk();//更新当前块的是否可视化
+					} else {//不包含就实例化一个新的地形块添加进字典
+						terrainChunkDictionary.Add(viewedChunkCoord, new TerrainChunk (viewedChunkCoord, chunkSize, detailLevels, colliderLODIndex, transform, mapMaterial));
+					}	
 				}
-
 			}
 		}
 	}
@@ -79,6 +90,8 @@ public class EndlessTerrain : MonoBehaviour
 	[Serializable]
 	public class TerrainChunk {
 
+		public Vector2 coord;//坐标
+		
 		GameObject meshObject;//网格对象
 		Vector2 position;//位置
 		Bounds bounds;//网格边界
@@ -89,11 +102,12 @@ public class EndlessTerrain : MonoBehaviour
 		
 		LODInfo[] detailLevels;//细节层次设置
 		LODMesh[] lodMeshes;//细节层次网格
-		LODMesh collisionLODMesh;//细节层次网格碰撞体
+		int colliderLODIndex;//碰撞器细节层次信息
 
 		MapData mapData;//地图数据
 		bool mapDataReceived;//是否收到了地图数据
 		int previousLODIndex = -1;//之前的细节层次索引值
+		bool hasSetCollider;//是否已经设置了碰撞器
 
 		/// <summary>
 		/// 实例化地形块
@@ -101,10 +115,13 @@ public class EndlessTerrain : MonoBehaviour
 		/// <param name="coord">块坐标</param>
 		/// <param name="size">块大小</param>
 		/// <param name="detailLevels">细节层次信息</param>
+		/// <param name="colliderLODIndex">碰撞器细节层次信息</param>
 		/// <param name="parent">父物体</param>
 		/// <param name="material"></param>
-		public TerrainChunk(Vector2 coord, int size, LODInfo[] detailLevels, Transform parent, Material material) {
+		public TerrainChunk(Vector2 coord, int size, LODInfo[] detailLevels, int colliderLODIndex, Transform parent, Material material) {
+			this.coord = coord;
 			this.detailLevels = detailLevels;
+			this.colliderLODIndex = colliderLODIndex;
 			
 			position = coord * size;//位置等于块坐标乘以块大小
 			bounds = new Bounds(position,Vector2.one * size);//设置地形块边界用于距离计算
@@ -125,9 +142,10 @@ public class EndlessTerrain : MonoBehaviour
 			//创建细节层次网格数组
 			lodMeshes = new LODMesh[detailLevels.Length];
 			for (int i = 0; i < detailLevels.Length; i++) {//为每个细节层次都创建一个网格
-				lodMeshes[i] = new LODMesh(detailLevels[i].lod, UpdateTerrainChunk);
-				if (detailLevels[i].useForCollider) {
-					collisionLODMesh = lodMeshes[i];
+				lodMeshes[i] = new LODMesh(detailLevels[i].lod);
+				lodMeshes[i].updateCallback += UpdateTerrainChunk;//回调函数加上更新地形块方法
+				if (i == colliderLODIndex) {//如果是碰撞器的细节层次索引
+					lodMeshes[i].updateCallback += UpdateCollisionMesh;//就在回调函数上增加更新碰撞网格方法
 				}
 			}
 
@@ -151,10 +169,13 @@ public class EndlessTerrain : MonoBehaviour
 		public void UpdateTerrainChunk() {
 			if (mapDataReceived) {//如果收到了地图数据
 				float viewerDstFromNearestEdge = Mathf.Sqrt (bounds.SqrDistance (viewerPosition));
-				bool visible = viewerDstFromNearestEdge <= maxViewDst;
+				
+				bool wasVisible = IsVisible ();
+				var visible = viewerDstFromNearestEdge <= maxViewDst;
 
-				if (visible) {//如果可见，设置细节层次索引
+				if(visible) {//如果可见，设置细节层次索引
 					int lodIndex = 0;
+					
 					for (int i = 0; i < detailLevels.Length - 1; i++) {
 						if (viewerDstFromNearestEdge > detailLevels [i].visibleDstThreshold) {
 							lodIndex = i + 1;
@@ -164,7 +185,7 @@ public class EndlessTerrain : MonoBehaviour
 					}
 					//如果细节层次索引和之前的不一样就重新加载网格
 					if (lodIndex != previousLODIndex) {
-						LODMesh lodMesh = lodMeshes [lodIndex];
+						var lodMesh = lodMeshes[lodIndex];
 						if (lodMesh.hasMesh) {
 							previousLODIndex = lodIndex;
 							meshFilter.mesh = lodMesh.mesh;
@@ -172,18 +193,40 @@ public class EndlessTerrain : MonoBehaviour
 							lodMesh.RequestMesh (mapData);
 						}
 					}
-					//只为最近的那些网格增加碰撞体
-					if (lodIndex == 0) {
-						if (collisionLODMesh.hasMesh) {
-							meshCollider.sharedMesh = collisionLODMesh.mesh;
-						} else if (!collisionLODMesh.hasRequestedMesh) {
-							collisionLODMesh.RequestMesh (mapData);
-						}
-					}
-					
-					terrainChunksVisibleLastUpdate.Add (this);//将自己添加到上次可见地形块列表中
 				}
-				SetVisible (visible);
+				
+				//如果可见性发生了变化
+				if (wasVisible != visible) {
+					if (visible) {//如果当前可见，就添加进可见地形块列表
+						visibleTerrainChunks.Add(this);
+					} else {//否则就移出
+						visibleTerrainChunks.Remove(this);
+					}
+					SetVisible(visible);
+				}
+			}
+		}
+		
+		/// <summary>
+		/// 生成碰撞体网格，为了性能，希望尽可能晚地创建碰撞器
+		/// </summary>
+		public void UpdateCollisionMesh() {
+			if (!hasSetCollider) {//如果还没有设置碰撞器
+				//视点到边缘的平方距离等于边界乘以视点的位置的平方距离
+				float sqrDstFromViewerToEdge = bounds.SqrDistance (viewerPosition);
+				//如果观察者的到边缘的平方距离小于可见阈值，请求对应细节层次的网格数据
+				if (sqrDstFromViewerToEdge < detailLevels[colliderLODIndex].sqrVisibleDstThreshold) {
+					if (!lodMeshes [colliderLODIndex].hasRequestedMesh) {
+						lodMeshes [colliderLODIndex].RequestMesh (mapData);
+					}
+				}
+				//如果观察者的到边缘的平方距离小于生成阈值，设置碰撞器的网格等于索引细节层次的网格
+				if (sqrDstFromViewerToEdge < colliderGenerationDistanceThreshold * colliderGenerationDistanceThreshold) {
+					if (lodMeshes [colliderLODIndex].hasMesh) {//只有接收到了网格才操作
+						meshCollider.sharedMesh = lodMeshes[colliderLODIndex].mesh;
+						hasSetCollider = true;
+					}
+				}
 			}
 		}
 
@@ -212,11 +255,10 @@ public class EndlessTerrain : MonoBehaviour
 		public bool hasRequestedMesh;//是否已经请求了网格
 		public bool hasMesh;//是否收到了网格
 		int lod;//当前网格的细节层次2
-		Action updateCallback;//回调函数用于更新地形块
+		public event Action updateCallback;//回调函数用于更新地形块
 
-		public LODMesh(int lod, System.Action updateCallback) {
+		public LODMesh(int lod) {
 			this.lod = lod;
-			this.updateCallback = updateCallback;
 		}
 
 		/// <summary>
@@ -224,8 +266,9 @@ public class EndlessTerrain : MonoBehaviour
 		/// </summary>
 		/// <param name="meshData"></param>
 		void OnMeshDataReceived(MeshData meshData) {
-			mesh = meshData.CreateMesh ();//创建网格
+			mesh = meshData.CreateMesh();//创建网格
 			hasMesh = true;//设置收到了数据
+			
 			updateCallback();//执行回调函数
 		}
 
@@ -240,10 +283,14 @@ public class EndlessTerrain : MonoBehaviour
 
 	}
 
+	/// <summary>
+	/// 细节层次信息
+	/// </summary>
 	[Serializable]
-	public struct LODInfo {
-		public int lod;
-		public float visibleDstThreshold;
-		public bool useForCollider;
+	public struct LODInfo
+	{
+		[Tooltip("细节层整数"), Range(0, MeshGenerator.numSupportedLODs - 1)] public int lod;
+		[Tooltip("可见距离阈值")] public float visibleDstThreshold;
+		[Tooltip("可见距离阈值的平方")] public float sqrVisibleDstThreshold => visibleDstThreshold * visibleDstThreshold;
 	}
 }

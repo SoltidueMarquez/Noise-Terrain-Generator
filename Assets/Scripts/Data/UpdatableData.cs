@@ -10,6 +10,7 @@ namespace Data
 		public event System.Action onValuesUpdated;
 		[Tooltip("是否自动更新")] public bool autoUpdate;
 
+#if UNITY_EDITOR
 		/// <summary>
 		/// 当检查面板的值发生变化时会调用的函数
 		/// </summary>
@@ -23,6 +24,6 @@ namespace Data
 			UnityEditor.EditorApplication.update -= NotifyOfUpdatedValues;
 			onValuesUpdated?.Invoke();
 		}
-
+#endif
 	}
 }

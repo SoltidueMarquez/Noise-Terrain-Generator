@@ -8,18 +8,24 @@ using TerrainData = Data.TerrainData;
 [Serializable]
 public enum DrawMode {NoiseMap, FalloffMap, Mesh};
 public class MapGenerator : MonoBehaviour {
-	static MapGenerator instance;
-	
+
 	[Tooltip("绘制模式")] public DrawMode drawMode;
 	
 	[Tooltip("地形数据")] public TerrainData terrainData;
 	[Tooltip("噪音数据")] public NoiseData noiseData;
 	[Tooltip("纹理数据")] public TextureData textureData;
 	
-	public Material terrainMaterial;
-	
-	[Range(0, 6), Tooltip("细节层次")] public int editorPreviewLOD;
-	
+	[Tooltip("地形材质")] public Material terrainMaterial;
+
+	[Tooltip("块大小索引"), Range(0, MeshGenerator.numSupportedChunkSizes - 1)]
+	public int chunkSizeIndex;
+
+	[Tooltip("平面着色细节层次索引"), Range(0, MeshGenerator.numSupportedFlatshadedChunkSizes - 1)]
+	public int flatShadedChunkSizeIndex;
+
+	[Tooltip("细节层次索引"), Range(0, MeshGenerator.numSupportedLODs - 1)]
+	public int editorPreviewLOD;
+
 	[Tooltip("是否自动更新")] public bool autoUpdate;
 	[Tooltip("衰减贴图")] float[,] falloffMap;
 	
@@ -28,6 +34,7 @@ public class MapGenerator : MonoBehaviour {
 
 	private void Awake()
 	{
+		textureData.ApplyToMaterial (terrainMaterial);
 		textureData.UpdateMeshHeights(terrainMaterial, terrainData.minHeight, terrainData.maxHeight);//更新地形材质
 	}
 
@@ -46,7 +53,15 @@ public class MapGenerator : MonoBehaviour {
 	/// 为了补偿网格边界计算加上2时会变为241，再-1会变成240，
 	/// 但是240对于平面着色会有点多，所以平面着色时使用96(不能被10整除)
 	/// </summary>
-	public int mapChunkSize => terrainData.useFlatShading ? 95 : 239;
+	public int mapChunkSize {//根据索引返回地图块边长
+		get {
+			if (terrainData.useFlatShading) {
+				return MeshGenerator.supportedFlatshadedChunkSizes[flatShadedChunkSizeIndex] -1;
+			} else {
+				return MeshGenerator.supportedChunkSizes[chunkSizeIndex] -1;
+			}
+		}
+	}
 
 	/// <summary>
 	/// 绘制地形方法

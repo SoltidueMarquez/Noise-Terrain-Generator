@@ -4,6 +4,12 @@
 /// 网格生成器
 /// </summary>
 public static class MeshGenerator {
+	[Tooltip("支持的细节层次数量")] public const int numSupportedLODs = 5;
+	[Tooltip("支持的地形块大小个数")] public const int numSupportedChunkSizes = 9;
+	[Tooltip("支持的地形块边长数组")] public static readonly int[] supportedChunkSizes = { 48, 72, 96, 120, 144, 168, 192, 216, 240 };
+	[Tooltip("支持平面着色的地形块大小个数")] public const int numSupportedFlatshadedChunkSizes = 3;
+	[Tooltip("支持平面着色的地形块边长数组")] public static readonly int[] supportedFlatshadedChunkSizes = { 48, 72, 96 };
+	
 	/// <summary>
 	/// 生成地形网格数据的静态方法
 	/// </summary>
@@ -33,7 +39,6 @@ public static class MeshGenerator {
 		{
 			vertexIndicesMap[index] = new int[borderedSize];
 		}
-
 		int meshVertexIndex = 0;//网格顶点索引
 		int borderVertexIndex = -1;//边界顶点索引
 		
