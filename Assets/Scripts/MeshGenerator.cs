@@ -1,26 +1,19 @@
-﻿using UnityEngine;
+﻿using Data;
+using UnityEngine;
 
 /// <summary>
 /// 网格生成器
 /// </summary>
 public static class MeshGenerator {
-	[Tooltip("支持的细节层次数量")] public const int numSupportedLODs = 5;
-	[Tooltip("支持的地形块大小个数")] public const int numSupportedChunkSizes = 9;
-	[Tooltip("支持的地形块边长数组")] public static readonly int[] supportedChunkSizes = { 48, 72, 96, 120, 144, 168, 192, 216, 240 };
-	[Tooltip("支持平面着色的地形块大小个数")] public const int numSupportedFlatshadedChunkSizes = 3;
-	[Tooltip("支持平面着色的地形块边长数组")] public static readonly int[] supportedFlatshadedChunkSizes = { 48, 72, 96 };
-	
 	/// <summary>
 	/// 生成地形网格数据的静态方法
 	/// </summary>
 	/// <param name="heightMap">高度图</param>
-	/// <param name="heightMultiplier">高度乘数</param>
-	/// <param name="heightCurve">不同高度收乘数影响的程度曲线</param>
+	/// <param name="meshSettings">网格设置</param>
 	/// <param name="levelOfDetail">LOD层数</param>
 	/// <returns></returns>
-	public static MeshData GenerateTerrainMesh(float[,] heightMap, float heightMultiplier, AnimationCurve _heightCurve, int levelOfDetail, bool useFlatShading) {
-		AnimationCurve heightCurve = new AnimationCurve (_heightCurve.keys);//创建一个新的动画曲线，让线程们可以正常访问
-		
+	public static MeshData GenerateTerrainMesh(float[,] heightMap, MeshSettings meshSettings, int levelOfDetail) {
+
 		int meshSimplificationIncrement = (levelOfDetail == 0)?1:levelOfDetail * 2;//网格简化增量，就是LOD系数乘以2(为0时步长为1)，作为顶点的迭代步数
 		
 		int borderedSize = heightMap.GetLength (0);//边界大小
@@ -32,7 +25,7 @@ public static class MeshGenerator {
 		
 		int verticesPerLine = (meshSize - 1) / meshSimplificationIncrement + 1; //计算每一行的顶点数
 
-		MeshData meshData = new MeshData(verticesPerLine, useFlatShading);//网格数据
+		MeshData meshData = new MeshData(verticesPerLine, meshSettings.useFlatShading);//网格数据
 		
 		int[][] vertexIndicesMap = new int[borderedSize][];//顶点索引映射
 		for (int index = 0; index < borderedSize; index++)
@@ -58,12 +51,12 @@ public static class MeshGenerator {
 		//遍历高度图，计算三角形
 		for (int y = 0; y < borderedSize; y += meshSimplificationIncrement) {
 			for (int x = 0; x < borderedSize; x += meshSimplificationIncrement) {
-				int vertexIndex = vertexIndicesMap[x][y];//获取顶点索引
-				Vector2 percent = new Vector2((x - meshSimplificationIncrement) / (float)meshSize, (y - meshSimplificationIncrement) / (float)meshSize);//计算uv，减去简化增量确保uv正确居中
-				float height = heightCurve.Evaluate (heightMap [x, y]) * heightMultiplier;//计算高度
-				Vector3 vertexPosition = new Vector3 (topLeftX + percent.x * meshSizeUnsimplified, height, topLeftZ - percent.y * meshSizeUnsimplified);
+				var vertexIndex = vertexIndicesMap[x][y];//获取顶点索引
+				var percent = new Vector2((x - meshSimplificationIncrement) / (float)meshSize, (y - meshSimplificationIncrement) / (float)meshSize);//计算uv，减去简化增量确保uv正确居中
+				var height = heightMap [x, y];//计算高度
+				var vertexPosition = new Vector3((topLeftX + percent.x * meshSizeUnsimplified) * meshSettings.meshScale, height, (topLeftZ - percent.y * meshSizeUnsimplified) * meshSettings.meshScale);
 
-				meshData.AddVertex (vertexPosition, percent, vertexIndex);//为网格数据添加顶点信息
+				meshData.AddVertex(vertexPosition, percent, vertexIndex);//为网格数据添加顶点信息
 				
 				//为顶点设置三角形(右下，三角形*2，因此右边与底部的点不需要考虑创建三角形)，与顶点索引映射一起起效
 				if (x < borderedSize - 1 && y < borderedSize - 1) {
@@ -71,7 +64,7 @@ public static class MeshGenerator {
 					int b = vertexIndicesMap[x + meshSimplificationIncrement][y];								//b是(x+网格简化增量,y)处的顶点索引映射
 					int c = vertexIndicesMap[x][y + meshSimplificationIncrement];								//c是(x,y+网格简化增量)处的顶点索引映射
 					int d = vertexIndicesMap[x + meshSimplificationIncrement][y + meshSimplificationIncrement];	//d是(x+网格简化增量,y+网格简化增量)处的顶点索引映射
-					meshData.AddTriangle (a,d,c);//添加两个三角形
+					meshData.AddTriangle(a, d, c);//添加两个三角形
 					meshData.AddTriangle (d,a,b);
 				}
 				

@@ -9,20 +9,26 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a7bf4994a05919c41800cd09d1ff9f36, type: 3}
-  m_Name: Default Terrain
+  m_Script: {fileID: 11500000, guid: 184c379ac66aaf945bf418257e10870f, type: 3}
+  m_Name: New Height Map Settings
   m_EditorClassIdentifier: 
   autoUpdate: 1
-  uniformScale: 2.5
-  useFlatShading: 0
+  noiseSettings:
+    normalizeMode: 1
+    scale: 50
+    octaves: 6
+    persistance: 0.5
+    lacunarity: 2
+    seed: 0
+    offset: {x: 0, y: 0}
   useFalloff: 0
-  meshHeightMultiplier: 30
-  meshHeightCurve:
+  heightMultiplier: 50
+  heightCurve:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
-      time: -0.55042267
-      value: -0.27111816
+      time: -0.27023315
+      value: -0.074523926
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -30,35 +36,44 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0.11533764
-      outSlope: 0.11533764
+      time: -0.005899629
+      value: -0.017118454
+      inSlope: 0.5193152
+      outSlope: 0.5193152
       tangentMode: 0
       weightedMode: 0
       inWeight: 0.33333334
       outWeight: 0.33333334
     - serializedVersion: 3
-      time: 0.5790049
-      value: 0.25807342
-      inSlope: 1.131379
-      outSlope: 1.131379
+      time: 0.3646676
+      value: 0.28834856
+      inSlope: 0.40831074
+      outSlope: 0.40831074
       tangentMode: 0
       weightedMode: 0
       inWeight: 0.33333334
-      outWeight: 0.12691675
+      outWeight: 0.14463565
     - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 1.9469764
-      outSlope: 1.9469764
+      time: 0.81646794
+      value: 0.67430604
+      inSlope: 1.6672826
+      outSlope: 1.6672826
       tangentMode: 0
       weightedMode: 0
-      inWeight: 0.33333334
+      inWeight: 0.210734
+      outWeight: 0.31914502
+    - serializedVersion: 3
+      time: 1.0394073
+      value: 0.9860744
+      inSlope: 1.5167092
+      outSlope: 1.5167092
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.29739892
       outWeight: 0.33333334
     - serializedVersion: 3
-      time: 1.5315785
-      value: 1.6295389
+      time: 1.2435303
+      value: 1.1746063
       inSlope: 2
       outSlope: 2
       tangentMode: 0

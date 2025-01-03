@@ -26,6 +26,6 @@ public class MapDisplay : MonoBehaviour {
 	public void DrawMesh(MeshData meshData) {
 		meshFilter.sharedMesh = meshData.CreateMesh ();
 		//将网格缩放比例设置为统一缩放比例
-		meshFilter.transform.localScale = Vector3.one * FindObjectOfType<MapGenerator>().terrainData.uniformScale;
+		meshFilter.transform.localScale = Vector3.one * FindObjectOfType<MapGenerator>().meshSettings.meshScale;
 	}
 }
